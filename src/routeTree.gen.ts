@@ -9,38 +9,141 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReportRouteImport } from './routes/report'
+import { Route as MappaRouteImport } from './routes/mappa'
+import { Route as ContattiRouteImport } from './routes/contatti'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OpportunitaIndexRouteImport } from './routes/opportunita.index'
+import { Route as OpportunitaNuovaRouteImport } from './routes/opportunita.nuova'
+import { Route as OpportunitaIdRouteImport } from './routes/opportunita.$id'
 
+const ReportRoute = ReportRouteImport.update({
+  id: '/report',
+  path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MappaRoute = MappaRouteImport.update({
+  id: '/mappa',
+  path: '/mappa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContattiRoute = ContattiRouteImport.update({
+  id: '/contatti',
+  path: '/contatti',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpportunitaIndexRoute = OpportunitaIndexRouteImport.update({
+  id: '/opportunita/',
+  path: '/opportunita/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpportunitaNuovaRoute = OpportunitaNuovaRouteImport.update({
+  id: '/opportunita/nuova',
+  path: '/opportunita/nuova',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpportunitaIdRoute = OpportunitaIdRouteImport.update({
+  id: '/opportunita/$id',
+  path: '/opportunita/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contatti': typeof ContattiRoute
+  '/mappa': typeof MappaRoute
+  '/report': typeof ReportRoute
+  '/opportunita/$id': typeof OpportunitaIdRoute
+  '/opportunita/nuova': typeof OpportunitaNuovaRoute
+  '/opportunita/': typeof OpportunitaIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contatti': typeof ContattiRoute
+  '/mappa': typeof MappaRoute
+  '/report': typeof ReportRoute
+  '/opportunita/$id': typeof OpportunitaIdRoute
+  '/opportunita/nuova': typeof OpportunitaNuovaRoute
+  '/opportunita': typeof OpportunitaIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contatti': typeof ContattiRoute
+  '/mappa': typeof MappaRoute
+  '/report': typeof ReportRoute
+  '/opportunita/$id': typeof OpportunitaIdRoute
+  '/opportunita/nuova': typeof OpportunitaNuovaRoute
+  '/opportunita/': typeof OpportunitaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/contatti'
+    | '/mappa'
+    | '/report'
+    | '/opportunita/$id'
+    | '/opportunita/nuova'
+    | '/opportunita/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/contatti'
+    | '/mappa'
+    | '/report'
+    | '/opportunita/$id'
+    | '/opportunita/nuova'
+    | '/opportunita'
+  id:
+    | '__root__'
+    | '/'
+    | '/contatti'
+    | '/mappa'
+    | '/report'
+    | '/opportunita/$id'
+    | '/opportunita/nuova'
+    | '/opportunita/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContattiRoute: typeof ContattiRoute
+  MappaRoute: typeof MappaRoute
+  ReportRoute: typeof ReportRoute
+  OpportunitaIdRoute: typeof OpportunitaIdRoute
+  OpportunitaNuovaRoute: typeof OpportunitaNuovaRoute
+  OpportunitaIndexRoute: typeof OpportunitaIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/report': {
+      id: '/report'
+      path: '/report'
+      fullPath: '/report'
+      preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mappa': {
+      id: '/mappa'
+      path: '/mappa'
+      fullPath: '/mappa'
+      preLoaderRoute: typeof MappaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contatti': {
+      id: '/contatti'
+      path: '/contatti'
+      fullPath: '/contatti'
+      preLoaderRoute: typeof ContattiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +151,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/opportunita/': {
+      id: '/opportunita/'
+      path: '/opportunita'
+      fullPath: '/opportunita/'
+      preLoaderRoute: typeof OpportunitaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/opportunita/nuova': {
+      id: '/opportunita/nuova'
+      path: '/opportunita/nuova'
+      fullPath: '/opportunita/nuova'
+      preLoaderRoute: typeof OpportunitaNuovaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/opportunita/$id': {
+      id: '/opportunita/$id'
+      path: '/opportunita/$id'
+      fullPath: '/opportunita/$id'
+      preLoaderRoute: typeof OpportunitaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContattiRoute: ContattiRoute,
+  MappaRoute: MappaRoute,
+  ReportRoute: ReportRoute,
+  OpportunitaIdRoute: OpportunitaIdRoute,
+  OpportunitaNuovaRoute: OpportunitaNuovaRoute,
+  OpportunitaIndexRoute: OpportunitaIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
