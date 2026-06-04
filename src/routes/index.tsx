@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   OPPORTUNITY_STATUS,
   PRIORITIES,
+  PROPERTY_TYPES,
   labelOf,
   toneOf,
 } from "@/lib/enums";
