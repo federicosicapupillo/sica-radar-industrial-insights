@@ -145,8 +145,6 @@ function DetailPage() {
               <StatusBadge label={labelOf(PRIORITIES, opp.priority)} tone={toneOf(PRIORITIES, opp.priority)} />
               <StatusBadge label={labelOf(PROPERTY_TYPES, opp.property_type)} />
               <StatusBadge label={"Vendita: " + labelOf(ALREADY_FOR_SALE, opp.already_for_sale)} />
-            </div>
-              <StatusBadge label={"Vendita: " + labelOf(ALREADY_FOR_SALE, opp.already_for_sale)} />
               {isFromMisuratore(opp) && <MisuratoreTag size="md" />}
               {(isFromMisuratore(opp) || opp.compatibility_score != null) && (
                 <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
