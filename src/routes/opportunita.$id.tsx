@@ -3,6 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CompatibilityBadge, MisuratoreTag } from "@/components/CompatibilityBadge";
+import {
+  isFromMisuratore,
+  fmtOrMissing,
+  MEASUREMENT_SOURCE_LABELS,
+  CONFIDENCE_LABELS,
+} from "@/lib/compatibility";
 import {
   OPPORTUNITY_STATUS,
   PRIORITIES,
@@ -14,7 +21,7 @@ import {
   toneOf,
 } from "@/lib/enums";
 import { toast } from "sonner";
-import { ArrowLeft, Archive, Star, Phone, Pencil, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowLeft, Archive, Star, Phone, Pencil, ExternalLink, Trash2, Ruler } from "lucide-react";
 
 export const Route = createFileRoute("/opportunita/$id")({
   component: DetailPage,
@@ -138,6 +145,10 @@ function DetailPage() {
               <StatusBadge label={labelOf(PRIORITIES, opp.priority)} tone={toneOf(PRIORITIES, opp.priority)} />
               <StatusBadge label={labelOf(PROPERTY_TYPES, opp.property_type)} />
               <StatusBadge label={"Vendita: " + labelOf(ALREADY_FOR_SALE, opp.already_for_sale)} />
+              {isFromMisuratore(opp) && <MisuratoreTag size="md" />}
+              {(isFromMisuratore(opp) || opp.compatibility_score != null) && (
+                <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
+              )}
             </div>
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
               <Stat label="Cambia stato">
@@ -148,6 +159,8 @@ function DetailPage() {
               </Stat>
             </div>
           </Card>
+
+          {isFromMisuratore(opp) && <MeasurementCard opp={opp as unknown as OppRow} />}
 
           <Card title="Dati tecnici">
             <Grid>
@@ -292,4 +305,127 @@ function ExtLink({ href, label }: { href: string | null | undefined; label: stri
       <ExternalLink className="w-4 h-4 shrink-0 text-muted-foreground" />
     </a>
   );
+}
+
+type OppRow = {
+  target_covered_sqm?: number | null;
+  target_covered_sqm_max?: number | null;
+  target_yard_sqm?: number | null;
+  target_internal_height?: number | null;
+  measured_covered_sqm?: number | null;
+  measured_yard_sqm?: number | null;
+  measured_length?: number | null;
+  measured_width?: number | null;
+  measurement_source?: string | null;
+  measurement_confidence?: string | null;
+  measurement_notes?: string | null;
+  compatibility_score?: number | null;
+  compatibility_status?: string | null;
+  missing_data?: { missing?: string[]; warnings?: string[] } | null;
+  suggested_next_action?: string | null;
+  last_measured_at?: string | null;
+};
+
+function MeasurementCard({ opp }: { opp: OppRow }) {
+  const diffCovered =
+    opp.target_covered_sqm != null && opp.measured_covered_sqm != null
+      ? opp.measured_covered_sqm - opp.target_covered_sqm
+      : null;
+  const diffYard =
+    opp.target_yard_sqm != null && opp.measured_yard_sqm != null
+      ? opp.measured_yard_sqm - opp.target_yard_sqm
+      : null;
+  const missing = Array.isArray(opp.missing_data?.missing) ? opp.missing_data!.missing! : [];
+  const warnings = Array.isArray(opp.missing_data?.warnings) ? opp.missing_data!.warnings! : [];
+
+  return (
+    <div className="bg-card border rounded-lg">
+      <div className="px-4 py-3 border-b flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
+          <Ruler className="w-4 h-4 text-primary" />
+          Misurazione e compatibilità
+        </h3>
+        <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <MInfo label="Mq coperti richiesti" value={fmtOrMissing(opp.target_covered_sqm, { suffix: " m²" })} />
+          <MInfo label="Mq coperti misurati" value={fmtOrMissing(opp.measured_covered_sqm, { suffix: " m²" })} />
+          <MInfo label="Δ mq coperti" value={fmtDiff(diffCovered, "m²")} tone={diffTone(diffCovered)} />
+          <MInfo label="Mq piazzale richiesti" value={fmtOrMissing(opp.target_yard_sqm, { suffix: " m²" })} />
+          <MInfo label="Mq piazzale misurati" value={fmtOrMissing(opp.measured_yard_sqm, { suffix: " m²" })} />
+          <MInfo label="Δ mq piazzale" value={fmtDiff(diffYard, "m²")} tone={diffTone(diffYard)} />
+          <MInfo label="Lunghezza edificio" value={fmtOrMissing(opp.measured_length, { suffix: " m" })} />
+          <MInfo label="Larghezza edificio" value={fmtOrMissing(opp.measured_width, { suffix: " m" })} />
+          <MInfo
+            label="Altezza interna"
+            value={fmtOrMissing(opp.target_internal_height, { suffix: " m", missingLabel: "Da verificare" })}
+          />
+          <MInfo label="Fonte misura" value={MEASUREMENT_SOURCE_LABELS[opp.measurement_source ?? ""] ?? fmtOrMissing(opp.measurement_source)} />
+          <MInfo label="Precisione misura" value={CONFIDENCE_LABELS[opp.measurement_confidence ?? ""] ?? fmtOrMissing(opp.measurement_confidence)} />
+          <MInfo
+            label="Ultima misurazione"
+            value={opp.last_measured_at ? new Date(opp.last_measured_at).toLocaleString("it-IT") : "Non inserito"}
+          />
+        </div>
+
+        {opp.measurement_notes && (
+          <div className="p-3 bg-muted/40 rounded-md text-sm whitespace-pre-wrap">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Note misurazione</div>
+            {opp.measurement_notes}
+          </div>
+        )}
+
+        {missing.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Dati mancanti</div>
+            <ul className="text-sm list-disc pl-5 space-y-0.5">
+              {missing.map((m) => <li key={m}>{m}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Da verificare</div>
+            <ul className="text-sm list-disc pl-5 space-y-0.5 text-amber-600">
+              {warnings.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {opp.suggested_next_action && (
+          <div className="p-3 rounded-md border border-primary/30 bg-primary/5 text-sm">
+            <div className="text-[11px] uppercase tracking-wide text-primary mb-1">Prossima azione suggerita</div>
+            {opp.suggested_next_action}
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground">
+          Il punteggio di compatibilità indica la coerenza tecnica con i parametri di ricerca, non lo stato commerciale dell'immobile.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MInfo({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" | null }) {
+  const cls = tone === "pos" ? "text-emerald-600" : tone === "neg" ? "text-red-600" : "text-foreground";
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`text-sm font-medium ${cls}`}>{value}</div>
+    </div>
+  );
+}
+
+function fmtDiff(d: number | null, unit: string): string {
+  if (d == null) return "Non calcolabile";
+  const sign = d >= 0 ? "+" : "";
+  return `${sign}${Math.round(d).toLocaleString("it-IT")} ${unit}`;
+}
+
+function diffTone(d: number | null): "pos" | "neg" | null {
+  if (d == null) return null;
+  return d >= 0 ? "pos" : "neg";
 }
