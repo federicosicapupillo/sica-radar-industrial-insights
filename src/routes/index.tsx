@@ -35,7 +35,7 @@ function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("opportunities")
-        .select("id,title,city,province,property_type,opportunity_status,priority,updated_at,created_at")
+        .select("id,title,city,province,property_type,opportunity_status,priority,updated_at,created_at,measurement_source,compatibility_score,compatibility_status,last_measured_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
