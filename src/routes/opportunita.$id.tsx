@@ -393,6 +393,37 @@ function MeasurementCard({ opp }: { opp: OppRow }) {
           />
         </div>
 
+        {(opp.google_maps_url || opp.google_earth_url || opp.uploaded_file_url) && (
+          <div className="flex flex-wrap gap-2">
+            {opp.google_maps_url && (
+              <a href={opp.google_maps_url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-accent">
+                <ExternalLink className="w-3.5 h-3.5" /> Google Maps
+              </a>
+            )}
+            {opp.google_earth_url && (
+              <a href={opp.google_earth_url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-accent">
+                <ExternalLink className="w-3.5 h-3.5" /> Google Earth
+              </a>
+            )}
+            {opp.uploaded_file_url && (
+              <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background">
+                <Ruler className="w-3.5 h-3.5" /> File: {opp.uploaded_file_url}
+                {opp.geo_area_sqm != null && <span className="text-muted-foreground"> · {Math.round(opp.geo_area_sqm).toLocaleString("it-IT")} m²</span>}
+              </span>
+            )}
+          </div>
+        )}
+
+        {opp.visual_notes && (
+          <div className="p-3 bg-muted/40 rounded-md text-sm whitespace-pre-wrap">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Note visive dalla mappa</div>
+            {opp.visual_notes}
+          </div>
+        )}
+
+
         {opp.measurement_notes && (
           <div className="p-3 bg-muted/40 rounded-md text-sm whitespace-pre-wrap">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Note misurazione</div>
