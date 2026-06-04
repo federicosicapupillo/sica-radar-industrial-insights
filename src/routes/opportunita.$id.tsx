@@ -49,7 +49,7 @@ function DetailPage() {
 
   const updateMut = useMutation({
     mutationFn: async (patch: Record<string, unknown>) => {
-      const { error } = await supabase.from("opportunities").update(patch).eq("id", id);
+      const { error } = await supabase.from("opportunities").update(patch as never).eq("id", id);
       if (error) throw error;
       await supabase.from("activity_logs").insert({
         opportunity_id: id,
