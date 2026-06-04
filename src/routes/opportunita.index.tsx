@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CompatibilityBadge, MisuratoreTag } from "@/components/CompatibilityBadge";
+import { isFromMisuratore } from "@/lib/compatibility";
 import {
   OPPORTUNITY_STATUS,
   PRIORITIES,
@@ -18,6 +20,8 @@ export const Route = createFileRoute("/opportunita/")({
   component: ListPage,
 });
 
+type SortKey = "recent" | "compat_desc" | "compat_asc";
+
 type Filters = {
   q: string;
   province: string;
@@ -31,6 +35,8 @@ type Filters = {
   height_min: string;
   truck_access: string;
   has_yard: string;
+  only_misuratore: boolean;
+  only_da_verificare: boolean;
 };
 
 const emptyFilters: Filters = {
@@ -46,10 +52,13 @@ const emptyFilters: Filters = {
   height_min: "",
   truck_access: "",
   has_yard: "",
+  only_misuratore: false,
+  only_da_verificare: false,
 };
 
 function ListPage() {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [sort, setSort] = useState<SortKey>("recent");
   const [open, setOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -86,16 +95,28 @@ function ListPage() {
     if (filters.truck_access === "si") r = r.filter((o) => o.truck_access === true);
     if (filters.truck_access === "no") r = r.filter((o) => o.truck_access === false);
     if (filters.has_yard === "si") r = r.filter((o) => (o.yard_sqm ?? 0) > 0);
-    return r;
-  }, [data, filters]);
+    if (filters.only_misuratore) r = r.filter((o) => isFromMisuratore(o));
+    if (filters.only_da_verificare) r = r.filter((o) => o.opportunity_status === "da_verificare" || o.compatibility_status === "da_verificare");
 
-  const activeCount = Object.values(filters).filter(Boolean).length;
+    if (sort === "compat_desc" || sort === "compat_asc") {
+      const dir = sort === "compat_desc" ? -1 : 1;
+      r = [...r].sort((a, b) => {
+        const sa = a.compatibility_score ?? -1;
+        const sb = b.compatibility_score ?? -1;
+        return (sa - sb) * dir;
+      });
+    }
+    return r;
+  }, [data, filters, sort]);
+
+  const activeCount =
+    Object.entries(filters).filter(([, v]) => (typeof v === "boolean" ? v : !!v)).length;
 
   return (
     <>
       <PageHeader
         title="Opportunità immobiliari"
-        subtitle={`${rows.length} ${rows.length === 1 ? "opportunità" : "opportunità"} ${activeCount ? "(filtrate)" : ""}`}
+        subtitle={`${rows.length} opportunità ${activeCount ? "(filtrate)" : ""}`}
         actions={
           <>
             <button
@@ -117,14 +138,39 @@ function ListPage() {
       />
 
       <div className="p-4 md:p-8 space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={filters.q}
-            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-            placeholder="Cerca per titolo, città, provincia, azienda, proprietà…"
-            className="w-full pl-9 pr-3 py-2.5 bg-card border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        {/* Search + Sort */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={filters.q}
+              onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+              placeholder="Cerca per titolo, città, provincia, azienda, proprietà…"
+              className="w-full pl-9 pr-3 py-2.5 bg-card border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="px-3 py-2.5 bg-card border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="recent">Ordina: più recenti</option>
+            <option value="compat_desc">Compatibilità ↓</option>
+            <option value="compat_asc">Compatibilità ↑</option>
+          </select>
+        </div>
+
+        {/* Quick toggles */}
+        <div className="flex flex-wrap gap-2">
+          <Toggle
+            active={filters.only_misuratore}
+            onClick={() => setFilters({ ...filters, only_misuratore: !filters.only_misuratore })}
+            label="Solo Misuratore"
+          />
+          <Toggle
+            active={filters.only_da_verificare}
+            onClick={() => setFilters({ ...filters, only_da_verificare: !filters.only_da_verificare })}
+            label="Solo da verificare"
           />
         </div>
 
@@ -152,7 +198,6 @@ function ListPage() {
           </div>
         )}
 
-        {/* Desktop table / Mobile cards */}
         {isLoading ? (
           <div className="bg-card border rounded-lg p-10 text-center text-muted-foreground text-sm">Caricamento…</div>
         ) : rows.length === 0 ? (
@@ -162,6 +207,7 @@ function ListPage() {
           </div>
         ) : (
           <>
+            {/* Desktop table */}
             <div className="hidden lg:block bg-card border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
@@ -172,63 +218,100 @@ function ListPage() {
                     <th className="text-right px-4 py-3 font-medium">Mq coperti</th>
                     <th className="text-right px-4 py-3 font-medium">Altezza</th>
                     <th className="text-center px-4 py-3 font-medium">Bilici</th>
+                    <th className="text-left px-4 py-3 font-medium">Compatibilità</th>
                     <th className="text-left px-4 py-3 font-medium">Stato</th>
                     <th className="text-left px-4 py-3 font-medium">Priorità</th>
                     <th className="text-right px-4 py-3 font-medium">Aggiornato</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {rows.map((o) => (
-                    <tr key={o.id} className="hover:bg-accent/30">
-                      <td className="px-4 py-3">
-                        <Link to="/opportunita/$id" params={{ id: o.id }} className="font-medium text-foreground hover:text-primary">
-                          {o.title}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{[o.city, o.province].filter(Boolean).join(", ") || "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{labelOf(PROPERTY_TYPES, o.property_type)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{o.covered_sqm ? `${o.covered_sqm}` : "—"}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{o.internal_height ? `${o.internal_height} m` : "—"}</td>
-                      <td className="px-4 py-3 text-center text-muted-foreground">{o.truck_access === true ? "Sì" : o.truck_access === false ? "No" : "—"}</td>
-                      <td className="px-4 py-3"><StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} /></td>
-                      <td className="px-4 py-3"><StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} /></td>
-                      <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
-                        {new Date(o.updated_at).toLocaleDateString("it-IT")}
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((o) => {
+                    const fromMis = isFromMisuratore(o);
+                    return (
+                      <tr key={o.id} className="hover:bg-accent/30">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Link to="/opportunita/$id" params={{ id: o.id }} className="font-medium text-foreground hover:text-primary">
+                              {o.title}
+                            </Link>
+                            {fromMis && <MisuratoreTag />}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{[o.city, o.province].filter(Boolean).join(", ") || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{labelOf(PROPERTY_TYPES, o.property_type)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{o.covered_sqm ? `${o.covered_sqm}` : "—"}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{o.internal_height ? `${o.internal_height} m` : "—"}</td>
+                        <td className="px-4 py-3 text-center text-muted-foreground">{o.truck_access === true ? "Sì" : o.truck_access === false ? "No" : "—"}</td>
+                        <td className="px-4 py-3">
+                          {fromMis || o.compatibility_score != null
+                            ? <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} showLabel={false} />
+                            : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3"><StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} /></td>
+                        <td className="px-4 py-3"><StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} /></td>
+                        <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
+                          {new Date(o.updated_at).toLocaleDateString("it-IT")}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
+            {/* Mobile cards */}
             <div className="lg:hidden grid gap-3">
-              {rows.map((o) => (
-                <Link key={o.id} to="/opportunita/$id" params={{ id: o.id }} className="bg-card border rounded-lg p-4 hover:bg-accent/30">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">{o.title}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {[o.city, o.province].filter(Boolean).join(", ") || "—"}
+              {rows.map((o) => {
+                const fromMis = isFromMisuratore(o);
+                return (
+                  <Link key={o.id} to="/opportunita/$id" params={{ id: o.id }} className="bg-card border rounded-lg p-4 hover:bg-accent/30">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-foreground truncate">{o.title}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {[o.city, o.province].filter(Boolean).join(", ") || "—"}
+                        </div>
                       </div>
+                      <StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} />
                     </div>
-                    <StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} />
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span>{labelOf(PROPERTY_TYPES, o.property_type)}</span>
-                    {o.covered_sqm ? <span>· {o.covered_sqm} m²</span> : null}
-                    {o.internal_height ? <span>· h {o.internal_height} m</span> : null}
-                    {o.truck_access ? <span>· bilici</span> : null}
-                  </div>
-                  <div className="mt-3">
-                    <StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} />
-                  </div>
-                </Link>
-              ))}
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span>{labelOf(PROPERTY_TYPES, o.property_type)}</span>
+                      {o.covered_sqm ? <span>· {o.covered_sqm} m²</span> : null}
+                      {o.internal_height ? <span>· h {o.internal_height} m</span> : null}
+                      {o.truck_access ? <span>· bilici</span> : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} />
+                      {fromMis && <MisuratoreTag />}
+                      {(fromMis || o.compatibility_score != null) && (
+                        <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} />
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </>
         )}
       </div>
     </>
+  );
+}
+
+function Toggle({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors " +
+        (active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-card text-muted-foreground hover:text-foreground hover:bg-accent")
+      }
+    >
+      {label}
+    </button>
   );
 }
 
