@@ -163,7 +163,7 @@ function Dashboard() {
                         <div className="font-medium text-sm truncate">{o.title}</div>
                         <div className="text-xs text-muted-foreground truncate">
                           {[o.city, o.province].filter(Boolean).join(", ") || "Località non indicata"}
-                          {o.property_type ? " · " + labelOf([], o.property_type) : ""}
+                          {o.property_type ? " · " + labelOf(PROPERTY_TYPES, o.property_type) : ""}
                         </div>
                       </div>
                       <StatusBadge
