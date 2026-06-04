@@ -106,10 +106,14 @@ export type Database = {
           asking_price: number | null
           city: string | null
           commercial_notes: string | null
+          compatibility_score: number | null
+          compatibility_status: string | null
           contact_name: string | null
           covered_sqm: number | null
           created_at: string
           email: string | null
+          geojson_data: Json | null
+          geometry_data: Json | null
           google_earth_url: string | null
           google_maps_url: string | null
           has_crane: boolean | null
@@ -117,9 +121,19 @@ export type Database = {
           id: string
           intended_use: string | null
           internal_height: number | null
+          kml_file_url: string | null
+          last_measured_at: string | null
           latitude: number | null
           loading_doors: number | null
           longitude: number | null
+          measured_covered_sqm: number | null
+          measured_length: number | null
+          measured_width: number | null
+          measured_yard_sqm: number | null
+          measurement_confidence: string | null
+          measurement_notes: string | null
+          measurement_source: string | null
+          missing_data: Json | null
           near_highway: boolean | null
           near_industrial_area: boolean | null
           near_port: boolean | null
@@ -140,6 +154,17 @@ export type Database = {
           source_type: string | null
           source_url: string | null
           spans_count: number | null
+          suggested_next_action: string | null
+          target_covered_sqm: number | null
+          target_covered_sqm_max: number | null
+          target_intended_use: string | null
+          target_internal_height: number | null
+          target_near_highway: boolean | null
+          target_near_port: boolean | null
+          target_notes: string | null
+          target_truck_access: boolean | null
+          target_yard_sqm: number | null
+          target_zone: string | null
           title: string
           truck_access: boolean | null
           updated_at: string
@@ -151,10 +176,14 @@ export type Database = {
           asking_price?: number | null
           city?: string | null
           commercial_notes?: string | null
+          compatibility_score?: number | null
+          compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
           created_at?: string
           email?: string | null
+          geojson_data?: Json | null
+          geometry_data?: Json | null
           google_earth_url?: string | null
           google_maps_url?: string | null
           has_crane?: boolean | null
@@ -162,9 +191,19 @@ export type Database = {
           id?: string
           intended_use?: string | null
           internal_height?: number | null
+          kml_file_url?: string | null
+          last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
           longitude?: number | null
+          measured_covered_sqm?: number | null
+          measured_length?: number | null
+          measured_width?: number | null
+          measured_yard_sqm?: number | null
+          measurement_confidence?: string | null
+          measurement_notes?: string | null
+          measurement_source?: string | null
+          missing_data?: Json | null
           near_highway?: boolean | null
           near_industrial_area?: boolean | null
           near_port?: boolean | null
@@ -185,6 +224,17 @@ export type Database = {
           source_type?: string | null
           source_url?: string | null
           spans_count?: number | null
+          suggested_next_action?: string | null
+          target_covered_sqm?: number | null
+          target_covered_sqm_max?: number | null
+          target_intended_use?: string | null
+          target_internal_height?: number | null
+          target_near_highway?: boolean | null
+          target_near_port?: boolean | null
+          target_notes?: string | null
+          target_truck_access?: boolean | null
+          target_yard_sqm?: number | null
+          target_zone?: string | null
           title: string
           truck_access?: boolean | null
           updated_at?: string
@@ -196,10 +246,14 @@ export type Database = {
           asking_price?: number | null
           city?: string | null
           commercial_notes?: string | null
+          compatibility_score?: number | null
+          compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
           created_at?: string
           email?: string | null
+          geojson_data?: Json | null
+          geometry_data?: Json | null
           google_earth_url?: string | null
           google_maps_url?: string | null
           has_crane?: boolean | null
@@ -207,9 +261,19 @@ export type Database = {
           id?: string
           intended_use?: string | null
           internal_height?: number | null
+          kml_file_url?: string | null
+          last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
           longitude?: number | null
+          measured_covered_sqm?: number | null
+          measured_length?: number | null
+          measured_width?: number | null
+          measured_yard_sqm?: number | null
+          measurement_confidence?: string | null
+          measurement_notes?: string | null
+          measurement_source?: string | null
+          missing_data?: Json | null
           near_highway?: boolean | null
           near_industrial_area?: boolean | null
           near_port?: boolean | null
@@ -230,6 +294,17 @@ export type Database = {
           source_type?: string | null
           source_url?: string | null
           spans_count?: number | null
+          suggested_next_action?: string | null
+          target_covered_sqm?: number | null
+          target_covered_sqm_max?: number | null
+          target_intended_use?: string | null
+          target_internal_height?: number | null
+          target_near_highway?: boolean | null
+          target_near_port?: boolean | null
+          target_notes?: string | null
+          target_truck_access?: boolean | null
+          target_yard_sqm?: number | null
+          target_zone?: string | null
           title?: string
           truck_access?: boolean | null
           updated_at?: string
