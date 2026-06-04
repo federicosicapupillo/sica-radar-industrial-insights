@@ -316,15 +316,28 @@ type OppRow = {
   measured_yard_sqm?: number | null;
   measured_length?: number | null;
   measured_width?: number | null;
+  estimated_height?: number | null;
+  truck_access_status?: string | null;
+  offices_status?: string | null;
   measurement_source?: string | null;
   measurement_confidence?: string | null;
   measurement_notes?: string | null;
+  visual_notes?: string | null;
+  google_maps_url?: string | null;
+  google_earth_url?: string | null;
+  uploaded_file_url?: string | null;
+  geo_feature_type?: string | null;
+  geo_area_sqm?: number | null;
+  search_name?: string | null;
+  client_name?: string | null;
+  industrial_area?: string | null;
   compatibility_score?: number | null;
   compatibility_status?: string | null;
   missing_data?: { missing?: string[]; warnings?: string[] } | null;
   suggested_next_action?: string | null;
   last_measured_at?: string | null;
 };
+
 
 function MeasurementCard({ opp }: { opp: OppRow }) {
   const diffCovered =
