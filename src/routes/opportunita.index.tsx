@@ -37,6 +37,10 @@ type Filters = {
   has_yard: string;
   only_misuratore: boolean;
   only_da_verificare: boolean;
+  measurement_complete: string;
+  has_geo_file: boolean;
+  has_maps_link: boolean;
+  has_earth_link: boolean;
 };
 
 const emptyFilters: Filters = {
@@ -54,7 +58,12 @@ const emptyFilters: Filters = {
   has_yard: "",
   only_misuratore: false,
   only_da_verificare: false,
+  measurement_complete: "",
+  has_geo_file: false,
+  has_maps_link: false,
+  has_earth_link: false,
 };
+
 
 function ListPage() {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
