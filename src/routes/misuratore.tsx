@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   Ruler,
   Save,
-  ExternalLink,
   Copy,
   Upload,
   AlertTriangle,
@@ -20,6 +19,8 @@ import {
   MapPin,
   PencilRuler,
   ClipboardList,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 
 export const Route = createFileRoute("/misuratore")({
@@ -49,11 +50,28 @@ const TRISTATE = [
   { value: "no", label: "No" },
 ] as const;
 
-const FEATURE_TYPES = [
+const POLY_CATEGORIES = [
+  { value: "none", label: "Non assegnato" },
   { value: "edificio", label: "Edificio coperto" },
   { value: "piazzale", label: "Piazzale" },
   { value: "area_totale", label: "Area totale" },
+  { value: "altro", label: "Altro / da verificare" },
 ] as const;
+
+const POLY_CAT_LABEL: Record<string, string> = Object.fromEntries(POLY_CATEGORIES.map((c) => [c.value, c.label]));
+
+type PolyCategory = "none" | "edificio" | "piazzale" | "area_totale" | "altro";
+
+type ParsedPolygon = {
+  id: string;
+  name: string;
+  geometryType: "Polygon" | "Point" | "LineString" | "Other";
+  areaSqm: number;
+  geometry: unknown | null;
+  assigned: PolyCategory;
+};
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 type Targets = {
   search_name: string;
@@ -94,10 +112,7 @@ type GeoState = {
   longitude: string;
   visual_notes: string;
   fileName: string;
-  fileUrl: string;
-  fileArea: number | null;
-  feature_type: string;
-  geometry: unknown | null;
+  polygons: ParsedPolygon[];
 };
 
 const initialTargets: Targets = {
@@ -117,8 +132,8 @@ const initialGeo: GeoState = {
   google_maps_url: "", google_earth_url: "",
   address: "", latitude: "", longitude: "",
   visual_notes: "",
-  fileName: "", fileUrl: "", fileArea: null,
-  feature_type: "edificio", geometry: null,
+  fileName: "",
+  polygons: [],
 };
 
 function numOrNull(v: string): number | null {
@@ -155,7 +170,6 @@ function computeCompatibility(t: Targets, m: Measured): Compat {
 
   let ok = 0;
   let total = 0;
-
   if (cMin != null) { total++; if (mc != null && mc >= cMin) ok++; }
   if (cMax != null && mc != null) { total++; if (mc <= cMax) ok++; }
   if (yMin != null) { total++; if (my != null && my >= yMin) ok++; }
@@ -196,9 +210,11 @@ function statusBadge(s: Compat["status"]) {
   );
 }
 
+/* ---------- Geometria ---------- */
+
 // Spherical polygon area in m² (ring of [lng,lat])
 function polygonAreaM2(ring: [number, number][]): number {
-  if (ring.length < 3) return 0;
+  if (!ring || ring.length < 3) return 0;
   const R = 6378137;
   let area = 0;
   for (let i = 0; i < ring.length; i++) {
@@ -210,30 +226,131 @@ function polygonAreaM2(ring: [number, number][]): number {
   return Math.abs(area * R * R / 2);
 }
 
-function parseGeoJSONForArea(json: unknown): { area: number; geometry: unknown } | null {
-  try {
-    type Geom = { type: string; coordinates: unknown };
-    const visit = (g: Geom | null | undefined): number => {
-      if (!g) return 0;
-      if (g.type === "Polygon") {
-        const coords = g.coordinates as [number, number][][];
-        return coords[0] ? polygonAreaM2(coords[0]) : 0;
-      }
-      if (g.type === "MultiPolygon") {
-        const coords = g.coordinates as [number, number][][][];
-        return coords.reduce((a, poly) => a + (poly[0] ? polygonAreaM2(poly[0]) : 0), 0);
-      }
-      return 0;
-    };
-    const j = json as { type?: string; features?: Array<{ geometry: Geom }>; geometry?: Geom };
-    if (j.type === "FeatureCollection" && Array.isArray(j.features)) {
-      const area = j.features.reduce((a, f) => a + visit(f.geometry), 0);
-      return { area, geometry: json };
+function parseKmlCoords(text: string): [number, number][] {
+  return text.trim().split(/\s+/).map((tup) => {
+    const parts = tup.split(",").map(Number);
+    const lon = parts[0], lat = parts[1];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    return [lon, lat] as [number, number];
+  }).filter((x): x is [number, number] => x !== null);
+}
+
+function parseKMLString(xml: string): ParsedPolygon[] {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length > 0) {
+    throw new Error("XML non valido");
+  }
+  const placemarks = Array.from(doc.getElementsByTagName("Placemark"));
+  const result: ParsedPolygon[] = [];
+  let pmIdx = 0;
+  for (const pm of placemarks) {
+    pmIdx++;
+    const name = pm.getElementsByTagName("name")[0]?.textContent?.trim() || `Placemark ${pmIdx}`;
+    const polygons = Array.from(pm.getElementsByTagName("Polygon"));
+    if (polygons.length > 0) {
+      polygons.forEach((poly, i) => {
+        const outerText = poly.getElementsByTagName("outerBoundaryIs")[0]
+          ?.getElementsByTagName("LinearRing")[0]
+          ?.getElementsByTagName("coordinates")[0]?.textContent || "";
+        const outer = parseKmlCoords(outerText);
+        if (outer.length < 3) return;
+        const inners = Array.from(poly.getElementsByTagName("innerBoundaryIs")).map((ib) => {
+          const t = ib.getElementsByTagName("LinearRing")[0]
+            ?.getElementsByTagName("coordinates")[0]?.textContent || "";
+          return parseKmlCoords(t);
+        }).filter((r) => r.length >= 3);
+        const area = Math.max(0, polygonAreaM2(outer) - inners.reduce((a, r) => a + polygonAreaM2(r), 0));
+        result.push({
+          id: `kml-${pmIdx}-${i}-${result.length}`,
+          name: polygons.length > 1 ? `${name} (poligono ${i + 1})` : name,
+          geometryType: "Polygon",
+          areaSqm: area,
+          geometry: { type: "Polygon", coordinates: [outer, ...inners] },
+          assigned: "none",
+        });
+      });
+      continue;
     }
-    if (j.type === "Feature" && j.geometry) return { area: visit(j.geometry), geometry: json };
-    if (j.type === "Polygon" || j.type === "MultiPolygon") return { area: visit(j as Geom), geometry: json };
-  } catch { /* ignore */ }
-  return null;
+    if (pm.getElementsByTagName("Point").length > 0) {
+      result.push({ id: `kml-p-${pmIdx}`, name, geometryType: "Point", areaSqm: 0, geometry: null, assigned: "none" });
+    } else if (pm.getElementsByTagName("LineString").length > 0) {
+      result.push({ id: `kml-l-${pmIdx}`, name, geometryType: "LineString", areaSqm: 0, geometry: null, assigned: "none" });
+    } else {
+      result.push({ id: `kml-o-${pmIdx}`, name, geometryType: "Other", areaSqm: 0, geometry: null, assigned: "none" });
+    }
+  }
+  return result;
+}
+
+function parseGeoJSONToPolygons(json: unknown): ParsedPolygon[] {
+  const out: ParsedPolygon[] = [];
+  let idx = 0;
+  type AnyGeom = { type: string; coordinates?: unknown; geometries?: AnyGeom[] };
+  const push = (name: string, g: AnyGeom | null | undefined) => {
+    if (!g || !g.type) return;
+    if (g.type === "Polygon") {
+      const ring = (g.coordinates as [number, number][][] | undefined)?.[0] || [];
+      out.push({
+        id: `gj-${idx++}`,
+        name,
+        geometryType: "Polygon",
+        areaSqm: polygonAreaM2(ring),
+        geometry: g,
+        assigned: "none",
+      });
+    } else if (g.type === "MultiPolygon") {
+      (g.coordinates as [number, number][][][]).forEach((poly, i) => {
+        const ring = poly?.[0] || [];
+        out.push({
+          id: `gj-${idx++}-${i}`,
+          name: `${name} (parte ${i + 1})`,
+          geometryType: "Polygon",
+          areaSqm: polygonAreaM2(ring),
+          geometry: { type: "Polygon", coordinates: poly },
+          assigned: "none",
+        });
+      });
+    } else if (g.type === "GeometryCollection") {
+      g.geometries?.forEach((sub) => push(name, sub));
+    } else {
+      out.push({ id: `gj-${idx++}`, name, geometryType: "Other", areaSqm: 0, geometry: g, assigned: "none" });
+    }
+  };
+  const j = json as { type?: string; features?: Array<{ geometry: AnyGeom; properties?: { name?: string } }>; geometry?: AnyGeom };
+  if (j?.type === "FeatureCollection" && Array.isArray(j.features)) {
+    j.features.forEach((f, i) => push(f.properties?.name || `Feature ${i + 1}`, f.geometry));
+  } else if (j?.type === "Feature" && j.geometry) {
+    push("Feature", j.geometry);
+  } else if (j?.type) {
+    push("Geometry", j as AnyGeom);
+  }
+  return out;
+}
+
+function aggregatePolys(polys: ParsedPolygon[]) {
+  const sumBy = (cat: PolyCategory) =>
+    polys.filter((p) => p.assigned === cat).reduce((a, p) => a + p.areaSqm, 0);
+  return {
+    edificio: sumBy("edificio"),
+    piazzale: sumBy("piazzale"),
+    area_totale: sumBy("area_totale"),
+  };
+}
+
+function buildFeatureCollection(polys: ParsedPolygon[], fileName: string) {
+  const features = polys
+    .filter((p) => p.geometry)
+    .map((p) => ({
+      type: "Feature" as const,
+      properties: {
+        name: p.name,
+        assigned_category: p.assigned,
+        area_sqm: Math.round(p.areaSqm),
+        source_file: fileName || null,
+      },
+      geometry: p.geometry,
+    }));
+  return features.length > 0 ? { type: "FeatureCollection" as const, features } : null;
 }
 
 const STEPS = [
@@ -249,10 +366,23 @@ function MisuratorePage() {
   const [m, setM] = useState<Measured>(initialMeasured);
   const [g, setG] = useState<GeoState>(initialGeo);
   const [tab, setTab] = useState<"manuale" | "file" | "coordinate">("manuale");
+  const [parsing, setParsing] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const compat = useMemo(() => computeCompatibility(t, m), [t, m]);
+  const polyAgg = useMemo(() => aggregatePolys(g.polygons), [g.polygons]);
+
+  // Misure effettive: il valore manuale ha priorità; in mancanza si usano gli assegnamenti del file
+  const mEffective: Measured = useMemo(
+    () => ({
+      ...m,
+      covered: m.covered || (polyAgg.edificio > 0 ? String(Math.round(polyAgg.edificio)) : ""),
+      yard: m.yard || (polyAgg.piazzale > 0 ? String(Math.round(polyAgg.piazzale)) : ""),
+    }),
+    [m, polyAgg],
+  );
+
+  const compat = useMemo(() => computeCompatibility(t, mEffective), [t, mEffective]);
 
   const mapsHref = g.google_maps_url
     || (g.latitude && g.longitude ? `https://www.google.com/maps?q=${g.latitude},${g.longitude}` : null)
@@ -277,36 +407,87 @@ function MisuratorePage() {
     } catch { toast.error("Impossibile leggere dagli appunti"); }
   };
 
-  const onFile = async (file: File) => {
-    setG((p) => ({ ...p, fileName: file.name }));
-    const ext = file.name.toLowerCase().split(".").pop() || "";
-    if (ext === "geojson" || ext === "json") {
-      try {
-        const text = await file.text();
-        const parsed = parseGeoJSONForArea(JSON.parse(text));
-        if (parsed && parsed.area > 0) {
-          setG((p) => ({ ...p, fileArea: parsed.area, geometry: parsed.geometry }));
-          toast.success(`Area calcolata: ${Math.round(parsed.area)} m²`);
-        } else {
-          toast.message("File GeoJSON caricato — nessun poligono valido trovato");
-        }
-      } catch {
-        toast.error("GeoJSON non valido");
-      }
-    } else if (ext === "kml" || ext === "kmz") {
-      toast.message("File caricato — analisi geometria KML/KMZ da completare");
+  const setPolygons = (polys: ParsedPolygon[], fileName: string) => {
+    setG((p) => ({ ...p, polygons: polys, fileName }));
+    const polyCount = polys.filter((p) => p.geometryType === "Polygon").length;
+    if (polyCount === 0 && polys.length > 0) {
+      toast.message("Il file contiene elementi geografici, ma nessun poligono misurabile.");
+    } else if (polyCount === 0) {
+      toast.message("Nessuna geometria trovata nel file.");
     } else {
-      toast.error("Formato non supportato (usa .geojson, .kml, .kmz)");
+      toast.success(`File analizzato correttamente. Poligoni trovati: ${polyCount}`);
     }
   };
+
+  const onFile = async (file: File) => {
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error("File troppo grande (max 10 MB)");
+      return;
+    }
+    if (file.size === 0) {
+      toast.error("Il file è vuoto");
+      return;
+    }
+    const ext = file.name.toLowerCase().split(".").pop() || "";
+    setParsing(true);
+    try {
+      if (ext === "geojson" || ext === "json") {
+        const text = await file.text();
+        let json: unknown;
+        try { json = JSON.parse(text); } catch { throw new Error("GeoJSON non valido"); }
+        const polys = parseGeoJSONToPolygons(json);
+        setPolygons(polys, file.name);
+      } else if (ext === "kml") {
+        const text = await file.text();
+        let polys: ParsedPolygon[];
+        try { polys = parseKMLString(text); }
+        catch { throw new Error("File non leggibile. Verifica che sia un KML esportato correttamente."); }
+        setPolygons(polys, file.name);
+      } else if (ext === "kmz") {
+        try {
+          const JSZip = (await import("jszip")).default;
+          const zip = await JSZip.loadAsync(await file.arrayBuffer());
+          const entry = Object.values(zip.files).find((f) => !f.dir && f.name.toLowerCase().endsWith(".kml"));
+          if (!entry) {
+            toast.message("KMZ caricato ma non analizzabile automaticamente in questa versione. Esporta da Google Earth in formato KML e ricarica il file.");
+            setG((p) => ({ ...p, fileName: file.name, polygons: [] }));
+            return;
+          }
+          const xml = await entry.async("text");
+          const polys = parseKMLString(xml);
+          setPolygons(polys, file.name);
+        } catch {
+          toast.message("KMZ caricato ma non analizzabile automaticamente in questa versione. Esporta da Google Earth in formato KML e ricarica il file.");
+          setG((p) => ({ ...p, fileName: file.name, polygons: [] }));
+        }
+      } else {
+        toast.error("Formato non supportato (usa .geojson, .kml, .kmz)");
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "Errore durante l'analisi del file");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const updatePolygon = (id: string, patch: Partial<ParsedPolygon>) => {
+    setG((p) => ({ ...p, polygons: p.polygons.map((poly) => (poly.id === id ? { ...poly, ...patch } : poly)) }));
+  };
+  const removePolygon = (id: string) => {
+    setG((p) => ({ ...p, polygons: p.polygons.filter((poly) => poly.id !== id) }));
+  };
+  const clearFile = () => setG((p) => ({ ...p, polygons: [], fileName: "" }));
+
+  const geoArea = polyAgg.area_totale > 0 ? Math.round(polyAgg.area_totale) : null;
+  const featureCollection = buildFeatureCollection(g.polygons, g.fileName);
 
   const buildOpportunityPayload = () => {
     const titleBase =
       t.search_name || t.client_name || t.city || t.industrial_area || g.address || "Capannone misurato";
-    const measuredCovered = numOrNull(m.covered) ?? (g.fileArea != null && g.feature_type === "edificio" ? Math.round(g.fileArea) : null);
-    const measuredYard = numOrNull(m.yard) ?? (g.fileArea != null && g.feature_type === "piazzale" ? Math.round(g.fileArea) : null);
+    const measuredCovered = numOrNull(mEffective.covered);
+    const measuredYard = numOrNull(mEffective.yard);
     return {
-      title: `${titleBase}${m.covered ? ` — ${m.covered} mq coperti` : ""}`,
+      title: `${titleBase}${measuredCovered ? ` — ${measuredCovered} mq coperti` : ""}`,
       property_type: "capannone_industriale",
       opportunity_status: compat.status === "non_compatibile" ? "non_adatto" : "da_verificare",
       priority:
@@ -333,7 +514,6 @@ function MisuratorePage() {
       google_maps_url: g.google_maps_url || null,
       google_earth_url: g.google_earth_url || null,
       source_type: "manuale",
-      // misuratore fields
       search_name: t.search_name || null,
       client_name: t.client_name || null,
       industrial_area: t.industrial_area || null,
@@ -359,10 +539,10 @@ function MisuratorePage() {
       measurement_notes: m.notes || null,
       visual_notes: g.visual_notes || null,
       uploaded_file_url: g.fileName || null,
-      geo_feature_type: g.fileArea != null ? g.feature_type : null,
-      geo_area_sqm: g.fileArea != null ? Math.round(g.fileArea) : null,
-      geometry_data: g.geometry ?? null,
-      geojson_data: g.geometry ?? null,
+      geo_feature_type: g.polygons.length > 0 ? "file_kml_geojson" : null,
+      geo_area_sqm: geoArea,
+      geometry_data: featureCollection,
+      geojson_data: featureCollection,
       compatibility_status: compat.status,
       compatibility_score: compat.score,
       missing_data: { missing: compat.missing, warnings: compat.warnings },
@@ -383,8 +563,8 @@ function MisuratorePage() {
     required_truck_access: t.truck_access,
     near_port_required: t.near_port,
     near_highway_required: t.near_highway,
-    measured_covered_sqm: numOrNull(m.covered),
-    measured_yard_sqm: numOrNull(m.yard),
+    measured_covered_sqm: numOrNull(mEffective.covered),
+    measured_yard_sqm: numOrNull(mEffective.yard),
     measured_length: numOrNull(m.length),
     measured_width: numOrNull(m.width),
     estimated_height: numOrNull(m.estimated_height) ?? numOrNull(m.internal_height),
@@ -402,9 +582,9 @@ function MisuratorePage() {
     target_notes: t.notes || null,
     uploaded_file_name: g.fileName || null,
     uploaded_file_url: g.fileName || null,
-    geojson_data: g.geometry ?? null,
-    geo_feature_type: g.fileArea != null ? g.feature_type : null,
-    geo_area_sqm: g.fileArea != null ? Math.round(g.fileArea) : null,
+    geojson_data: featureCollection,
+    geo_feature_type: g.polygons.length > 0 ? "file_kml_geojson" : null,
+    geo_area_sqm: geoArea,
     compatibility_score: compat.score,
     compatibility_status: compat.status,
     missing_data: { missing: compat.missing, warnings: compat.warnings },
@@ -568,38 +748,44 @@ function MisuratorePage() {
                   <div className="space-y-3 pt-3">
                     <label className="flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-md py-8 cursor-pointer hover:bg-accent/40 text-sm">
                       <Upload className="w-4 h-4" />
-                      <span>{g.fileName ? `File: ${g.fileName}` : "Carica file .geojson, .kml o .kmz"}</span>
+                      <span>
+                        {parsing
+                          ? "Analisi in corso…"
+                          : g.fileName
+                            ? `File: ${g.fileName}`
+                            : "Carica file .geojson, .kml o .kmz"}
+                      </span>
                       <input type="file" accept=".geojson,.json,.kml,.kmz"
                         className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+                        disabled={parsing}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onFile(f);
+                          e.target.value = "";
+                        }} />
                     </label>
-                    {g.fileName && !g.fileArea && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <FileText className="w-3.5 h-3.5" /> File caricato — analisi geometria da completare per KML/KMZ.
+
+                    {g.fileName && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> {g.fileName}</span>
+                        <button type="button" onClick={clearFile} className="inline-flex items-center gap-1 hover:text-foreground">
+                          <Trash2 className="w-3.5 h-3.5" /> Rimuovi
+                        </button>
                       </div>
                     )}
-                    {g.fileArea != null && (
-                      <div className="rounded-md border bg-background p-3 space-y-3">
-                        <div className="text-sm">
-                          Area poligono calcolata: <strong>{Math.round(g.fileArea).toLocaleString("it-IT")} m²</strong>
-                        </div>
-                        <Field label="Questo poligono rappresenta">
-                          <Select value={g.feature_type} onChange={(v) => setG({ ...g, feature_type: v })} options={FEATURE_TYPES as never} />
-                        </Field>
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => setM({ ...m, covered: String(Math.round(g.fileArea!)) })}
-                            className="text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent">
-                            Usa come mq coperti
-                          </button>
-                          <button type="button" onClick={() => setM({ ...m, yard: String(Math.round(g.fileArea!)) })}
-                            className="text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent">
-                            Usa come mq piazzale
-                          </button>
-                        </div>
-                      </div>
+
+                    {g.polygons.length > 0 && (
+                      <PolygonsTable
+                        polys={g.polygons}
+                        onUpdate={updatePolygon}
+                        onRemove={removePolygon}
+                        agg={polyAgg}
+                      />
                     )}
+
                     <p className="text-[11px] text-muted-foreground">
-                      Per KML/KMZ il file viene registrato ma l'area non è calcolata automaticamente.
+                      Per KMZ, esporta in formato KML da Google Earth se il file zippato non risulta leggibile.
+                      Solo poligoni chiusi vengono misurati: punti e linee sono registrati ma non producono mq.
                     </p>
                   </div>
                 )}
@@ -627,11 +813,17 @@ function MisuratorePage() {
                   <div className="text-3xl font-semibold tabular-nums">{compat.score}%</div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <Compare label="Mq coperti" req={t.covered_min} got={m.covered} unit="m²" diff={compat.diffCovered} />
-                  <Compare label="Mq piazzale" req={t.yard_min} got={m.yard} unit="m²" diff={compat.diffYard} />
+                  <Compare label="Mq coperti" req={t.covered_min} got={mEffective.covered} unit="m²" diff={compat.diffCovered} />
+                  <Compare label="Mq piazzale" req={t.yard_min} got={mEffective.yard} unit="m²" diff={compat.diffYard} />
                   <Compare label="Altezza interna" req={t.height_min} got={m.internal_height || m.estimated_height} unit="m" />
                   <Compare label="Accesso bilici" req={t.truck_access ? "Sì" : "—"} got={m.truck_access_status === "non_verificato" ? "Da verificare" : (m.truck_access_status === "si" ? "Sì" : "No")} unit="" />
                 </div>
+
+                {g.polygons.length > 0 && (
+                  <div className="pt-3 text-xs text-muted-foreground">
+                    Poligoni dal file <strong>{g.fileName}</strong>: edificio {Math.round(polyAgg.edificio).toLocaleString("it-IT")} m² · piazzale {Math.round(polyAgg.piazzale).toLocaleString("it-IT")} m² · area totale {Math.round(polyAgg.area_totale).toLocaleString("it-IT")} m²
+                  </div>
+                )}
 
                 {compat.missing.length > 0 && (
                   <div className="pt-3">
@@ -707,6 +899,13 @@ function MisuratorePage() {
                 <Metric label="Δ mq coperti" value={compat.diffCovered} unit="mq" />
                 <Metric label="Δ mq piazzale" value={compat.diffYard} unit="mq" />
               </div>
+              {g.polygons.length > 0 && (
+                <div className="pt-3 text-xs text-muted-foreground space-y-0.5">
+                  <div>Edificio (file): <strong>{Math.round(polyAgg.edificio).toLocaleString("it-IT")} m²</strong></div>
+                  <div>Piazzale (file): <strong>{Math.round(polyAgg.piazzale).toLocaleString("it-IT")} m²</strong></div>
+                  <div>Area totale (file): <strong>{Math.round(polyAgg.area_totale).toLocaleString("it-IT")} m²</strong></div>
+                </div>
+              )}
               <div className="pt-3 text-xs text-muted-foreground">
                 {t.search_name || "Ricerca senza nome"} · {t.client_name || "—"}
               </div>
@@ -715,6 +914,84 @@ function MisuratorePage() {
         </div>
       </div>
     </>
+  );
+}
+
+/* ---------- Tabella poligoni ---------- */
+
+function PolygonsTable({
+  polys,
+  onUpdate,
+  onRemove,
+  agg,
+}: {
+  polys: ParsedPolygon[];
+  onUpdate: (id: string, patch: Partial<ParsedPolygon>) => void;
+  onRemove: (id: string) => void;
+  agg: { edificio: number; piazzale: number; area_totale: number };
+}) {
+  const polyCount = polys.filter((p) => p.geometryType === "Polygon").length;
+  return (
+    <div className="rounded-md border bg-background">
+      <div className="px-3 py-2 border-b flex items-center justify-between text-xs">
+        <div className="font-medium">Poligoni rilevati: {polyCount}</div>
+        <div className="text-muted-foreground hidden sm:block">
+          Edificio {Math.round(agg.edificio).toLocaleString("it-IT")} m² · Piazzale {Math.round(agg.piazzale).toLocaleString("it-IT")} m² · Totale {Math.round(agg.area_totale).toLocaleString("it-IT")} m²
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">Nome</th>
+              <th className="text-left px-3 py-2 font-medium">Tipo</th>
+              <th className="text-right px-3 py-2 font-medium">m²</th>
+              <th className="text-right px-3 py-2 font-medium">ha</th>
+              <th className="text-left px-3 py-2 font-medium">Categoria</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {polys.map((p) => {
+              const measurable = p.geometryType === "Polygon" && p.areaSqm > 0;
+              return (
+                <tr key={p.id} className={!measurable ? "opacity-60" : ""}>
+                  <td className="px-3 py-2">
+                    <input
+                      value={p.name}
+                      onChange={(e) => onUpdate(p.id, { name: e.target.value })}
+                      className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-ring rounded px-1"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground text-xs">{p.geometryType}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{measurable ? Math.round(p.areaSqm).toLocaleString("it-IT") : "—"}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{measurable ? (p.areaSqm / 10000).toFixed(2) : "—"}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={p.assigned}
+                      disabled={!measurable}
+                      onChange={(e) => onUpdate(p.id, { assigned: e.target.value as PolyCategory })}
+                      className="w-full px-2 py-1 text-xs bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                    >
+                      {POLY_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button type="button" onClick={() => onRemove(p.id)} title="Rimuovi poligono"
+                      className="text-muted-foreground hover:text-red-600">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-3 py-2 border-t text-[11px] text-muted-foreground sm:hidden">
+        Totali: Edificio {Math.round(agg.edificio).toLocaleString("it-IT")} m² · Piazzale {Math.round(agg.piazzale).toLocaleString("it-IT")} m² · Area totale {Math.round(agg.area_totale).toLocaleString("it-IT")} m²
+      </div>
+    </div>
   );
 }
 
@@ -734,15 +1011,15 @@ function Stepper({ step, onJump }: { step: number; onJump: (n: number) => void }
               className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-md border transition-colors ${
                 active ? "bg-primary text-primary-foreground border-primary"
                 : done ? "bg-emerald-500/10 border-emerald-500/30 text-foreground"
-                : "bg-card text-muted-foreground hover:bg-accent"
-              }`}
-            >
-              <span className={`w-7 h-7 grid place-items-center rounded-full text-xs font-semibold ${
-                active ? "bg-primary-foreground/20" : done ? "bg-emerald-500/20" : "bg-muted"
+                : "bg-card border-border text-muted-foreground hover:bg-accent"
+              }`}>
+              <span className={`shrink-0 w-7 h-7 inline-flex items-center justify-center rounded-md border text-xs font-semibold ${
+                active ? "bg-primary-foreground/20 border-primary-foreground/40"
+                : done ? "bg-emerald-500/20 border-emerald-500/40"
+                : "bg-background border-border"
               }`}>{s.n}</span>
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <s.Icon className="w-4 h-4" /> {s.label}
-              </span>
+              <span className="text-sm font-medium truncate">{s.label}</span>
+              <s.Icon className="w-4 h-4 ml-auto opacity-70" />
             </button>
           </li>
         );
@@ -753,15 +1030,12 @@ function Stepper({ step, onJump }: { step: number; onJump: (n: number) => void }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-card border rounded-lg">
-      <header className="px-4 py-3 border-b">
-        <h3 className="text-sm font-semibold uppercase tracking-wide">{title}</h3>
-      </header>
-      <div className="p-4 space-y-3">{children}</div>
+    <section className="bg-card border rounded-lg p-4 md:p-6 space-y-3">
+      <h2 className="font-semibold text-foreground">{title}</h2>
+      {children}
     </section>
   );
 }
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -770,53 +1044,75 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
-
-function Input({ value, onChange, type = "text", step, placeholder }:
-  { value: string; onChange: (v: string) => void; type?: string; step?: string; placeholder?: string }) {
+function Input({
+  value, onChange, type = "text", placeholder, step,
+}: { value: string; onChange: (v: string) => void; type?: string; placeholder?: string; step?: string }) {
   return (
     <input
-      type={type} step={step} value={value} placeholder={placeholder}
+      type={type}
+      step={step}
+      value={value}
+      placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
     />
   );
 }
-
-function Textarea({ value, onChange, rows = 3 }: { value: string; onChange: (v: string) => void; rows?: number }) {
+function Textarea({
+  value, onChange, rows = 3,
+}: { value: string; onChange: (v: string) => void; rows?: number }) {
   return (
-    <textarea value={value} rows={rows}
+    <textarea
+      rows={rows}
+      value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+      className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    />
   );
 }
-
-function Select({ value, onChange, options }:
-  { value: string; onChange: (v: string) => void; options: ReadonlyArray<{ value: string; label: string }> }) {
+function Select({
+  value, onChange, options,
+}: { value: string; onChange: (v: string) => void; options: ReadonlyArray<{ value: string; label: string }> }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    >
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
 }
-
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Checkbox({
+  label, checked, onChange,
+}: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 rounded border-input text-primary focus:ring-ring" />
+    <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="w-4 h-4 accent-primary" />
       <span>{label}</span>
     </label>
   );
 }
-
+function Tab({
+  active, onClick, children, icon: Icon,
+}: { active: boolean; onClick: () => void; children: React.ReactNode; icon: React.ComponentType<{ className?: string }> }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-3 py-2 text-sm border-b-2 -mb-px ${
+        active ? "border-primary text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}>
+      <Icon className="w-4 h-4" /> {children}
+    </button>
+  );
+}
 function ExtBtn({ href, children, disabled }: { href: string | null; children: React.ReactNode; disabled?: boolean }) {
   if (!href || disabled) {
     return (
-      <button type="button" disabled
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border bg-card text-muted-foreground opacity-50 cursor-not-allowed">
+      <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border bg-muted text-muted-foreground opacity-60 cursor-not-allowed">
         <ExternalLink className="w-4 h-4" /> {children}
-      </button>
+      </span>
     );
   }
   return (
@@ -826,45 +1122,34 @@ function ExtBtn({ href, children, disabled }: { href: string | null; children: R
     </a>
   );
 }
-
-function Tab({ active, onClick, children, icon: Icon }:
-  { active: boolean; onClick: () => void; children: React.ReactNode; icon: typeof PencilRuler }) {
+function Compare({
+  label, req, got, unit, diff,
+}: { label: string; req: string | null; got: string | null; unit: string; diff?: number | null }) {
+  const r = req || "—";
+  const gv = got || "—";
   return (
-    <button type="button" onClick={onClick}
-      className={`inline-flex items-center gap-2 px-3 py-2 -mb-px border-b-2 text-sm font-medium ${
-        active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-      }`}>
-      <Icon className="w-4 h-4" /> {children}
-    </button>
-  );
-}
-
-function Metric({ label, value, unit }: { label: string; value: number | null; unit: string }) {
-  const fmt = value == null ? "—" : `${value >= 0 ? "+" : ""}${Math.round(value).toLocaleString("it-IT")} ${unit}`;
-  const cls = value == null ? "text-muted-foreground" : value >= 0 ? "text-emerald-600" : "text-red-600";
-  return (
-    <div className="rounded-md border bg-background px-3 py-2">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-sm font-semibold tabular-nums ${cls}`}>{fmt}</div>
-    </div>
-  );
-}
-
-function Compare({ label, req, got, unit, diff }:
-  { label: string; req: string; got: string; unit: string; diff?: number | null }) {
-  const fmt = (v: string) => v === "" || v == null ? "—" : `${v}${unit ? " " + unit : ""}`;
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-sm flex items-center justify-between gap-3 mt-1">
-        <span><span className="text-muted-foreground">Richiesto:</span> {fmt(req)}</span>
-        <span><span className="text-muted-foreground">Misurato:</span> {fmt(got)}</span>
+    <div className="border rounded-md p-3 bg-background">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 flex items-baseline justify-between gap-2 text-sm">
+        <span>Richiesto: <strong className="tabular-nums">{r}{r !== "—" ? ` ${unit}` : ""}</strong></span>
+        <span>Misurato: <strong className="tabular-nums">{gv}{gv !== "—" ? ` ${unit}` : ""}</strong></span>
       </div>
       {diff != null && (
         <div className={`mt-1 text-xs tabular-nums ${diff >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-          Δ {diff >= 0 ? "+" : ""}{Math.round(diff).toLocaleString("it-IT")} {unit}
+          Δ {diff >= 0 ? "+" : ""}{diff} {unit}
         </div>
       )}
     </div>
   );
 }
+function Metric({ label, value, unit }: { label: string; value: number | null; unit: string }) {
+  return (
+    <div className="rounded-md border bg-background p-2.5">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="font-semibold tabular-nums text-foreground">{value == null ? "—" : `${value >= 0 ? "+" : ""}${value} ${unit}`}</div>
+    </div>
+  );
+}
+
+// `POLY_CAT_LABEL` is exported indirectly via UI; keep import-friendly export of constants if needed elsewhere.
+export { POLY_CAT_LABEL };
