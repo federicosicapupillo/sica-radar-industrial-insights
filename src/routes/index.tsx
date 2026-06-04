@@ -98,6 +98,9 @@ function Dashboard() {
           })}
         </section>
 
+        {/* Misuratore stats */}
+        <MisuratoreCard opps={opps} />
+
         {/* Azioni rapide */}
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
