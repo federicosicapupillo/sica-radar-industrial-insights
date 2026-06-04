@@ -10,6 +10,8 @@ import {
   labelOf,
   toneOf,
 } from "@/lib/enums";
+import { isFromMisuratore, compatStatusFromScore } from "@/lib/compatibility";
+import { CompatibilityBadge, MisuratoreTag } from "@/components/CompatibilityBadge";
 import {
   Building2,
   PlusCircle,
@@ -23,6 +25,7 @@ import {
   Archive,
   Phone,
   Clock,
+  Ruler,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
