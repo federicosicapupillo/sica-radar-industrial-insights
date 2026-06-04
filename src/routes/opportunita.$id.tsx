@@ -160,7 +160,7 @@ function DetailPage() {
             </div>
           </Card>
 
-          {isFromMisuratore(opp) && <MeasurementCard opp={opp} />}
+          {isFromMisuratore(opp) && <MeasurementCard opp={opp as unknown as OppRow} />}
 
           <Card title="Dati tecnici">
             <Grid>
