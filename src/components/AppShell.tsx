@@ -13,14 +13,15 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const nav = [
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
+const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/opportunita", label: "Opportunità", icon: Building2 },
   { to: "/opportunita/nuova", label: "Nuova", icon: PlusCircle },
   { to: "/contatti", label: "Contatti", icon: Users },
   { to: "/mappa", label: "Mappa", icon: Map },
   { to: "/report", label: "Report", icon: BarChart3 },
-] as const;
+];
 
 export function AppShell() {
   const [open, setOpen] = useState(false);
