@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as MisuratoreRouteImport } from './routes/misuratore'
 import { Route as MappaRouteImport } from './routes/mappa'
 import { Route as ContattiRouteImport } from './routes/contatti'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,11 @@ import { Route as OpportunitaIdRouteImport } from './routes/opportunita.$id'
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MisuratoreRoute = MisuratoreRouteImport.update({
+  id: '/misuratore',
+  path: '/misuratore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MappaRoute = MappaRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
+  '/misuratore': typeof MisuratoreRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
+  '/misuratore': typeof MisuratoreRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
+  '/misuratore': typeof MisuratoreRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contatti'
     | '/mappa'
+    | '/misuratore'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contatti'
     | '/mappa'
+    | '/misuratore'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contatti'
     | '/mappa'
+    | '/misuratore'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContattiRoute: typeof ContattiRoute
   MappaRoute: typeof MappaRoute
+  MisuratoreRoute: typeof MisuratoreRoute
   ReportRoute: typeof ReportRoute
   OpportunitaIdRoute: typeof OpportunitaIdRoute
   OpportunitaNuovaRoute: typeof OpportunitaNuovaRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/misuratore': {
+      id: '/misuratore'
+      path: '/misuratore'
+      fullPath: '/misuratore'
+      preLoaderRoute: typeof MisuratoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mappa': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContattiRoute: ContattiRoute,
   MappaRoute: MappaRoute,
+  MisuratoreRoute: MisuratoreRoute,
   ReportRoute: ReportRoute,
   OpportunitaIdRoute: OpportunitaIdRoute,
   OpportunitaNuovaRoute: OpportunitaNuovaRoute,
