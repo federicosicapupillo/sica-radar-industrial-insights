@@ -106,6 +106,22 @@ function ListPage() {
     if (filters.has_yard === "si") r = r.filter((o) => (o.yard_sqm ?? 0) > 0);
     if (filters.only_misuratore) r = r.filter((o) => isFromMisuratore(o));
     if (filters.only_da_verificare) r = r.filter((o) => o.opportunity_status === "da_verificare" || o.compatibility_status === "da_verificare");
+    if (filters.measurement_complete === "complete") {
+      r = r.filter((o) => o.measured_covered_sqm != null && (!o.target_yard_sqm || o.measured_yard_sqm != null));
+    }
+    if (filters.measurement_complete === "incomplete") {
+      r = r.filter((o) => isFromMisuratore(o) && (o.measured_covered_sqm == null || (o.target_yard_sqm && o.measured_yard_sqm == null)));
+    }
+    if (filters.measurement_complete === "missing_data") {
+      r = r.filter((o) => {
+        const md = o.missing_data as { missing?: unknown[] } | null;
+        return Array.isArray(md?.missing) && md!.missing!.length > 0;
+      });
+    }
+    if (filters.has_geo_file) r = r.filter((o) => !!o.uploaded_file_url || !!o.geojson_data);
+    if (filters.has_maps_link) r = r.filter((o) => !!o.google_maps_url);
+    if (filters.has_earth_link) r = r.filter((o) => !!o.google_earth_url);
+
 
     if (sort === "compat_desc" || sort === "compat_asc") {
       const dir = sort === "compat_desc" ? -1 : 1;
