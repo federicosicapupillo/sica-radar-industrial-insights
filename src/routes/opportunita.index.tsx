@@ -197,7 +197,38 @@ function ListPage() {
             onClick={() => setFilters({ ...filters, only_da_verificare: !filters.only_da_verificare })}
             label="Solo da verificare"
           />
+          <Toggle
+            active={filters.measurement_complete === "complete"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "complete" ? "" : "complete" })}
+            label="Misurazione completa"
+          />
+          <Toggle
+            active={filters.measurement_complete === "incomplete"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "incomplete" ? "" : "incomplete" })}
+            label="Misurazione incompleta"
+          />
+          <Toggle
+            active={filters.measurement_complete === "missing_data"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "missing_data" ? "" : "missing_data" })}
+            label="Con dati mancanti"
+          />
+          <Toggle
+            active={filters.has_geo_file}
+            onClick={() => setFilters({ ...filters, has_geo_file: !filters.has_geo_file })}
+            label="Con file geospaziale"
+          />
+          <Toggle
+            active={filters.has_maps_link}
+            onClick={() => setFilters({ ...filters, has_maps_link: !filters.has_maps_link })}
+            label="Con link Google Maps"
+          />
+          <Toggle
+            active={filters.has_earth_link}
+            onClick={() => setFilters({ ...filters, has_earth_link: !filters.has_earth_link })}
+            label="Con link Google Earth"
+          />
         </div>
+
 
         {open && (
           <div className="bg-card border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
