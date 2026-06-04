@@ -316,15 +316,28 @@ type OppRow = {
   measured_yard_sqm?: number | null;
   measured_length?: number | null;
   measured_width?: number | null;
+  estimated_height?: number | null;
+  truck_access_status?: string | null;
+  offices_status?: string | null;
   measurement_source?: string | null;
   measurement_confidence?: string | null;
   measurement_notes?: string | null;
+  visual_notes?: string | null;
+  google_maps_url?: string | null;
+  google_earth_url?: string | null;
+  uploaded_file_url?: string | null;
+  geo_feature_type?: string | null;
+  geo_area_sqm?: number | null;
+  search_name?: string | null;
+  client_name?: string | null;
+  industrial_area?: string | null;
   compatibility_score?: number | null;
   compatibility_status?: string | null;
   missing_data?: { missing?: string[]; warnings?: string[] } | null;
   suggested_next_action?: string | null;
   last_measured_at?: string | null;
 };
+
 
 function MeasurementCard({ opp }: { opp: OppRow }) {
   const diffCovered =
@@ -340,14 +353,25 @@ function MeasurementCard({ opp }: { opp: OppRow }) {
 
   return (
     <div className="bg-card border rounded-lg">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
           <Ruler className="w-4 h-4 text-primary" />
           Misurazione e compatibilità
+          <span className="ml-2 inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 text-primary text-[11px] px-2 py-0.5 font-medium">
+            Origine: Misuratore
+          </span>
         </h3>
         <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
       </div>
       <div className="p-4 space-y-4">
+        {(opp.search_name || opp.client_name || opp.industrial_area) && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <MInfo label="Nome ricerca" value={fmtOrMissing(opp.search_name)} />
+            <MInfo label="Cliente" value={fmtOrMissing(opp.client_name)} />
+            <MInfo label="Zona industriale" value={fmtOrMissing(opp.industrial_area)} />
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <MInfo label="Mq coperti richiesti" value={fmtOrMissing(opp.target_covered_sqm, { suffix: " m²" })} />
           <MInfo label="Mq coperti misurati" value={fmtOrMissing(opp.measured_covered_sqm, { suffix: " m²" })} />
@@ -368,6 +392,37 @@ function MeasurementCard({ opp }: { opp: OppRow }) {
             value={opp.last_measured_at ? new Date(opp.last_measured_at).toLocaleString("it-IT") : "Non inserito"}
           />
         </div>
+
+        {(opp.google_maps_url || opp.google_earth_url || opp.uploaded_file_url) && (
+          <div className="flex flex-wrap gap-2">
+            {opp.google_maps_url && (
+              <a href={opp.google_maps_url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-accent">
+                <ExternalLink className="w-3.5 h-3.5" /> Google Maps
+              </a>
+            )}
+            {opp.google_earth_url && (
+              <a href={opp.google_earth_url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-accent">
+                <ExternalLink className="w-3.5 h-3.5" /> Google Earth
+              </a>
+            )}
+            {opp.uploaded_file_url && (
+              <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border bg-background">
+                <Ruler className="w-3.5 h-3.5" /> File: {opp.uploaded_file_url}
+                {opp.geo_area_sqm != null && <span className="text-muted-foreground"> · {Math.round(opp.geo_area_sqm).toLocaleString("it-IT")} m²</span>}
+              </span>
+            )}
+          </div>
+        )}
+
+        {opp.visual_notes && (
+          <div className="p-3 bg-muted/40 rounded-md text-sm whitespace-pre-wrap">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Note visive dalla mappa</div>
+            {opp.visual_notes}
+          </div>
+        )}
+
 
         {opp.measurement_notes && (
           <div className="p-3 bg-muted/40 rounded-md text-sm whitespace-pre-wrap">

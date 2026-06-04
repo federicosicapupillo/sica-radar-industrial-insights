@@ -37,6 +37,10 @@ type Filters = {
   has_yard: string;
   only_misuratore: boolean;
   only_da_verificare: boolean;
+  measurement_complete: string;
+  has_geo_file: boolean;
+  has_maps_link: boolean;
+  has_earth_link: boolean;
 };
 
 const emptyFilters: Filters = {
@@ -54,7 +58,12 @@ const emptyFilters: Filters = {
   has_yard: "",
   only_misuratore: false,
   only_da_verificare: false,
+  measurement_complete: "",
+  has_geo_file: false,
+  has_maps_link: false,
+  has_earth_link: false,
 };
+
 
 function ListPage() {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -97,6 +106,22 @@ function ListPage() {
     if (filters.has_yard === "si") r = r.filter((o) => (o.yard_sqm ?? 0) > 0);
     if (filters.only_misuratore) r = r.filter((o) => isFromMisuratore(o));
     if (filters.only_da_verificare) r = r.filter((o) => o.opportunity_status === "da_verificare" || o.compatibility_status === "da_verificare");
+    if (filters.measurement_complete === "complete") {
+      r = r.filter((o) => o.measured_covered_sqm != null && (!o.target_yard_sqm || o.measured_yard_sqm != null));
+    }
+    if (filters.measurement_complete === "incomplete") {
+      r = r.filter((o) => isFromMisuratore(o) && (o.measured_covered_sqm == null || (o.target_yard_sqm && o.measured_yard_sqm == null)));
+    }
+    if (filters.measurement_complete === "missing_data") {
+      r = r.filter((o) => {
+        const md = o.missing_data as { missing?: unknown[] } | null;
+        return Array.isArray(md?.missing) && md!.missing!.length > 0;
+      });
+    }
+    if (filters.has_geo_file) r = r.filter((o) => !!o.uploaded_file_url || !!o.geojson_data);
+    if (filters.has_maps_link) r = r.filter((o) => !!o.google_maps_url);
+    if (filters.has_earth_link) r = r.filter((o) => !!o.google_earth_url);
+
 
     if (sort === "compat_desc" || sort === "compat_asc") {
       const dir = sort === "compat_desc" ? -1 : 1;
@@ -172,7 +197,38 @@ function ListPage() {
             onClick={() => setFilters({ ...filters, only_da_verificare: !filters.only_da_verificare })}
             label="Solo da verificare"
           />
+          <Toggle
+            active={filters.measurement_complete === "complete"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "complete" ? "" : "complete" })}
+            label="Misurazione completa"
+          />
+          <Toggle
+            active={filters.measurement_complete === "incomplete"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "incomplete" ? "" : "incomplete" })}
+            label="Misurazione incompleta"
+          />
+          <Toggle
+            active={filters.measurement_complete === "missing_data"}
+            onClick={() => setFilters({ ...filters, measurement_complete: filters.measurement_complete === "missing_data" ? "" : "missing_data" })}
+            label="Con dati mancanti"
+          />
+          <Toggle
+            active={filters.has_geo_file}
+            onClick={() => setFilters({ ...filters, has_geo_file: !filters.has_geo_file })}
+            label="Con file geospaziale"
+          />
+          <Toggle
+            active={filters.has_maps_link}
+            onClick={() => setFilters({ ...filters, has_maps_link: !filters.has_maps_link })}
+            label="Con link Google Maps"
+          />
+          <Toggle
+            active={filters.has_earth_link}
+            onClick={() => setFilters({ ...filters, has_earth_link: !filters.has_earth_link })}
+            label="Con link Google Earth"
+          />
         </div>
+
 
         {open && (
           <div className="bg-card border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">

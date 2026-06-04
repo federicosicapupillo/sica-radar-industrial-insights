@@ -99,12 +99,148 @@ export type Database = {
           },
         ]
       }
+      measurement_drafts: {
+        Row: {
+          address: string | null
+          city: string | null
+          client_name: string | null
+          compatibility_score: number | null
+          compatibility_status: string | null
+          converted_to_opportunity: boolean
+          created_at: string
+          estimated_height: number | null
+          geo_area_sqm: number | null
+          geo_feature_type: string | null
+          geojson_data: Json | null
+          google_earth_url: string | null
+          google_maps_url: string | null
+          id: string
+          industrial_area: string | null
+          latitude: number | null
+          longitude: number | null
+          measured_covered_sqm: number | null
+          measured_length: number | null
+          measured_width: number | null
+          measured_yard_sqm: number | null
+          measurement_confidence: string | null
+          measurement_notes: string | null
+          measurement_source: string | null
+          missing_data: Json | null
+          near_highway_required: boolean | null
+          near_port_required: boolean | null
+          offices_status: string | null
+          opportunity_id: string | null
+          province: string | null
+          required_truck_access: boolean | null
+          search_name: string | null
+          suggested_next_action: string | null
+          target_covered_sqm: number | null
+          target_height: number | null
+          target_notes: string | null
+          target_yard_sqm: number | null
+          truck_access_status: string | null
+          updated_at: string
+          uploaded_file_name: string | null
+          uploaded_file_url: string | null
+          visual_notes: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          client_name?: string | null
+          compatibility_score?: number | null
+          compatibility_status?: string | null
+          converted_to_opportunity?: boolean
+          created_at?: string
+          estimated_height?: number | null
+          geo_area_sqm?: number | null
+          geo_feature_type?: string | null
+          geojson_data?: Json | null
+          google_earth_url?: string | null
+          google_maps_url?: string | null
+          id?: string
+          industrial_area?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          measured_covered_sqm?: number | null
+          measured_length?: number | null
+          measured_width?: number | null
+          measured_yard_sqm?: number | null
+          measurement_confidence?: string | null
+          measurement_notes?: string | null
+          measurement_source?: string | null
+          missing_data?: Json | null
+          near_highway_required?: boolean | null
+          near_port_required?: boolean | null
+          offices_status?: string | null
+          opportunity_id?: string | null
+          province?: string | null
+          required_truck_access?: boolean | null
+          search_name?: string | null
+          suggested_next_action?: string | null
+          target_covered_sqm?: number | null
+          target_height?: number | null
+          target_notes?: string | null
+          target_yard_sqm?: number | null
+          truck_access_status?: string | null
+          updated_at?: string
+          uploaded_file_name?: string | null
+          uploaded_file_url?: string | null
+          visual_notes?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          client_name?: string | null
+          compatibility_score?: number | null
+          compatibility_status?: string | null
+          converted_to_opportunity?: boolean
+          created_at?: string
+          estimated_height?: number | null
+          geo_area_sqm?: number | null
+          geo_feature_type?: string | null
+          geojson_data?: Json | null
+          google_earth_url?: string | null
+          google_maps_url?: string | null
+          id?: string
+          industrial_area?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          measured_covered_sqm?: number | null
+          measured_length?: number | null
+          measured_width?: number | null
+          measured_yard_sqm?: number | null
+          measurement_confidence?: string | null
+          measurement_notes?: string | null
+          measurement_source?: string | null
+          missing_data?: Json | null
+          near_highway_required?: boolean | null
+          near_port_required?: boolean | null
+          offices_status?: string | null
+          opportunity_id?: string | null
+          province?: string | null
+          required_truck_access?: boolean | null
+          search_name?: string | null
+          suggested_next_action?: string | null
+          target_covered_sqm?: number | null
+          target_height?: number | null
+          target_notes?: string | null
+          target_yard_sqm?: number | null
+          truck_access_status?: string | null
+          updated_at?: string
+          uploaded_file_name?: string | null
+          uploaded_file_url?: string | null
+          visual_notes?: string | null
+        }
+        Relationships: []
+      }
       opportunities: {
         Row: {
           address: string | null
           already_for_sale: string | null
           asking_price: number | null
           city: string | null
+          client_name: string | null
           commercial_notes: string | null
           compatibility_score: number | null
           compatibility_status: string | null
@@ -112,6 +248,9 @@ export type Database = {
           covered_sqm: number | null
           created_at: string
           email: string | null
+          estimated_height: number | null
+          geo_area_sqm: number | null
+          geo_feature_type: string | null
           geojson_data: Json | null
           geometry_data: Json | null
           google_earth_url: string | null
@@ -119,6 +258,7 @@ export type Database = {
           has_crane: boolean | null
           has_offices: boolean | null
           id: string
+          industrial_area: string | null
           intended_use: string | null
           internal_height: number | null
           kml_file_url: string | null
@@ -131,6 +271,7 @@ export type Database = {
           measured_width: number | null
           measured_yard_sqm: number | null
           measurement_confidence: string | null
+          measurement_draft_id: string | null
           measurement_notes: string | null
           measurement_source: string | null
           missing_data: Json | null
@@ -141,6 +282,7 @@ export type Database = {
           next_action_date: string | null
           occupying_company: string | null
           office_sqm: number | null
+          offices_status: string | null
           opportunity_status: string
           phone: string | null
           possible_owner: string | null
@@ -151,6 +293,7 @@ export type Database = {
           province: string | null
           region: string | null
           rent_price: number | null
+          search_name: string | null
           source_type: string | null
           source_url: string | null
           spans_count: number | null
@@ -167,7 +310,10 @@ export type Database = {
           target_zone: string | null
           title: string
           truck_access: boolean | null
+          truck_access_status: string | null
           updated_at: string
+          uploaded_file_url: string | null
+          visual_notes: string | null
           yard_sqm: number | null
         }
         Insert: {
@@ -175,6 +321,7 @@ export type Database = {
           already_for_sale?: string | null
           asking_price?: number | null
           city?: string | null
+          client_name?: string | null
           commercial_notes?: string | null
           compatibility_score?: number | null
           compatibility_status?: string | null
@@ -182,6 +329,9 @@ export type Database = {
           covered_sqm?: number | null
           created_at?: string
           email?: string | null
+          estimated_height?: number | null
+          geo_area_sqm?: number | null
+          geo_feature_type?: string | null
           geojson_data?: Json | null
           geometry_data?: Json | null
           google_earth_url?: string | null
@@ -189,6 +339,7 @@ export type Database = {
           has_crane?: boolean | null
           has_offices?: boolean | null
           id?: string
+          industrial_area?: string | null
           intended_use?: string | null
           internal_height?: number | null
           kml_file_url?: string | null
@@ -201,6 +352,7 @@ export type Database = {
           measured_width?: number | null
           measured_yard_sqm?: number | null
           measurement_confidence?: string | null
+          measurement_draft_id?: string | null
           measurement_notes?: string | null
           measurement_source?: string | null
           missing_data?: Json | null
@@ -211,6 +363,7 @@ export type Database = {
           next_action_date?: string | null
           occupying_company?: string | null
           office_sqm?: number | null
+          offices_status?: string | null
           opportunity_status?: string
           phone?: string | null
           possible_owner?: string | null
@@ -221,6 +374,7 @@ export type Database = {
           province?: string | null
           region?: string | null
           rent_price?: number | null
+          search_name?: string | null
           source_type?: string | null
           source_url?: string | null
           spans_count?: number | null
@@ -237,7 +391,10 @@ export type Database = {
           target_zone?: string | null
           title: string
           truck_access?: boolean | null
+          truck_access_status?: string | null
           updated_at?: string
+          uploaded_file_url?: string | null
+          visual_notes?: string | null
           yard_sqm?: number | null
         }
         Update: {
@@ -245,6 +402,7 @@ export type Database = {
           already_for_sale?: string | null
           asking_price?: number | null
           city?: string | null
+          client_name?: string | null
           commercial_notes?: string | null
           compatibility_score?: number | null
           compatibility_status?: string | null
@@ -252,6 +410,9 @@ export type Database = {
           covered_sqm?: number | null
           created_at?: string
           email?: string | null
+          estimated_height?: number | null
+          geo_area_sqm?: number | null
+          geo_feature_type?: string | null
           geojson_data?: Json | null
           geometry_data?: Json | null
           google_earth_url?: string | null
@@ -259,6 +420,7 @@ export type Database = {
           has_crane?: boolean | null
           has_offices?: boolean | null
           id?: string
+          industrial_area?: string | null
           intended_use?: string | null
           internal_height?: number | null
           kml_file_url?: string | null
@@ -271,6 +433,7 @@ export type Database = {
           measured_width?: number | null
           measured_yard_sqm?: number | null
           measurement_confidence?: string | null
+          measurement_draft_id?: string | null
           measurement_notes?: string | null
           measurement_source?: string | null
           missing_data?: Json | null
@@ -281,6 +444,7 @@ export type Database = {
           next_action_date?: string | null
           occupying_company?: string | null
           office_sqm?: number | null
+          offices_status?: string | null
           opportunity_status?: string
           phone?: string | null
           possible_owner?: string | null
@@ -291,6 +455,7 @@ export type Database = {
           province?: string | null
           region?: string | null
           rent_price?: number | null
+          search_name?: string | null
           source_type?: string | null
           source_url?: string | null
           spans_count?: number | null
@@ -307,7 +472,10 @@ export type Database = {
           target_zone?: string | null
           title?: string
           truck_access?: boolean | null
+          truck_access_status?: string | null
           updated_at?: string
+          uploaded_file_url?: string | null
+          visual_notes?: string | null
           yard_sqm?: number | null
         }
         Relationships: []
