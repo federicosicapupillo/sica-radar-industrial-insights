@@ -3,6 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CompatibilityBadge, MisuratoreTag } from "@/components/CompatibilityBadge";
+import {
+  isFromMisuratore,
+  fmtOrMissing,
+  MEASUREMENT_SOURCE_LABELS,
+  CONFIDENCE_LABELS,
+} from "@/lib/compatibility";
 import {
   OPPORTUNITY_STATUS,
   PRIORITIES,
@@ -14,7 +21,7 @@ import {
   toneOf,
 } from "@/lib/enums";
 import { toast } from "sonner";
-import { ArrowLeft, Archive, Star, Phone, Pencil, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowLeft, Archive, Star, Phone, Pencil, ExternalLink, Trash2, Ruler } from "lucide-react";
 
 export const Route = createFileRoute("/opportunita/$id")({
   component: DetailPage,
