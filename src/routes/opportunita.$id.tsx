@@ -353,14 +353,25 @@ function MeasurementCard({ opp }: { opp: OppRow }) {
 
   return (
     <div className="bg-card border rounded-lg">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
           <Ruler className="w-4 h-4 text-primary" />
           Misurazione e compatibilità
+          <span className="ml-2 inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 text-primary text-[11px] px-2 py-0.5 font-medium">
+            Origine: Misuratore
+          </span>
         </h3>
         <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
       </div>
       <div className="p-4 space-y-4">
+        {(opp.search_name || opp.client_name || opp.industrial_area) && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <MInfo label="Nome ricerca" value={fmtOrMissing(opp.search_name)} />
+            <MInfo label="Cliente" value={fmtOrMissing(opp.client_name)} />
+            <MInfo label="Zona industriale" value={fmtOrMissing(opp.industrial_area)} />
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <MInfo label="Mq coperti richiesti" value={fmtOrMissing(opp.target_covered_sqm, { suffix: " m²" })} />
           <MInfo label="Mq coperti misurati" value={fmtOrMissing(opp.measured_covered_sqm, { suffix: " m²" })} />
