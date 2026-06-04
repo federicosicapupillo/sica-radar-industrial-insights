@@ -146,6 +146,12 @@ function DetailPage() {
               <StatusBadge label={labelOf(PROPERTY_TYPES, opp.property_type)} />
               <StatusBadge label={"Vendita: " + labelOf(ALREADY_FOR_SALE, opp.already_for_sale)} />
             </div>
+              <StatusBadge label={"Vendita: " + labelOf(ALREADY_FOR_SALE, opp.already_for_sale)} />
+              {isFromMisuratore(opp) && <MisuratoreTag size="md" />}
+              {(isFromMisuratore(opp) || opp.compatibility_score != null) && (
+                <CompatibilityBadge score={opp.compatibility_score} status={opp.compatibility_status} size="md" />
+              )}
+            </div>
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
               <Stat label="Cambia stato">
                 <SelectInline value={opp.opportunity_status || ""} options={OPPORTUNITY_STATUS} onChange={(v) => updateMut.mutate({ opportunity_status: v })} />
@@ -155,6 +161,8 @@ function DetailPage() {
               </Stat>
             </div>
           </Card>
+
+          {isFromMisuratore(opp) && <MeasurementCard opp={opp} />}
 
           <Card title="Dati tecnici">
             <Grid>
