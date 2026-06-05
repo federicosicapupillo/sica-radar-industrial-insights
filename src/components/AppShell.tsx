@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/radar", label: "Radar", icon: Radar },
   { to: "/opportunita", label: "Opportunità", icon: Building2 },
   { to: "/opportunita/nuova", label: "Nuova", icon: PlusCircle },
   { to: "/misuratore", label: "Misuratore", icon: Ruler },
