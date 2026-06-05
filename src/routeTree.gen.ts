@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as RadarRouteImport } from './routes/radar'
 import { Route as MisuratoreRouteImport } from './routes/misuratore'
 import { Route as MappaRouteImport } from './routes/mappa'
 import { Route as ContattiRouteImport } from './routes/contatti'
@@ -21,6 +22,11 @@ import { Route as OpportunitaIdRouteImport } from './routes/opportunita.$id'
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RadarRoute = RadarRouteImport.update({
+  id: '/radar',
+  path: '/radar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MisuratoreRoute = MisuratoreRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
+  '/radar': typeof RadarRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
+  '/radar': typeof RadarRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
+  '/radar': typeof RadarRoute
   '/report': typeof ReportRoute
   '/opportunita/$id': typeof OpportunitaIdRoute
   '/opportunita/nuova': typeof OpportunitaNuovaRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/contatti'
     | '/mappa'
     | '/misuratore'
+    | '/radar'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/contatti'
     | '/mappa'
     | '/misuratore'
+    | '/radar'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/contatti'
     | '/mappa'
     | '/misuratore'
+    | '/radar'
     | '/report'
     | '/opportunita/$id'
     | '/opportunita/nuova'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   ContattiRoute: typeof ContattiRoute
   MappaRoute: typeof MappaRoute
   MisuratoreRoute: typeof MisuratoreRoute
+  RadarRoute: typeof RadarRoute
   ReportRoute: typeof ReportRoute
   OpportunitaIdRoute: typeof OpportunitaIdRoute
   OpportunitaNuovaRoute: typeof OpportunitaNuovaRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/radar': {
+      id: '/radar'
+      path: '/radar'
+      fullPath: '/radar'
+      preLoaderRoute: typeof RadarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/misuratore': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContattiRoute: ContattiRoute,
   MappaRoute: MappaRoute,
   MisuratoreRoute: MisuratoreRoute,
+  RadarRoute: RadarRoute,
   ReportRoute: ReportRoute,
   OpportunitaIdRoute: OpportunitaIdRoute,
   OpportunitaNuovaRoute: OpportunitaNuovaRoute,
@@ -208,3 +229,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
