@@ -338,6 +338,21 @@ function ListPage() {
                             ? <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} showLabel={false} />
                             : <span className="text-xs text-muted-foreground">—</span>}
                         </td>
+                        <td className="px-4 py-3">
+                          {o.occupant_company_name ? (
+                            <div className="min-w-0">
+                              <div className="text-foreground truncate">{o.occupant_company_name}</div>
+                              {o.occupant_phone && (
+                                <a href={`tel:${String(o.occupant_phone).replace(/\s+/g, "")}`} className="text-xs text-primary hover:underline tabular-nums">
+                                  {o.occupant_phone}
+                                </a>
+                              )}
+                            </div>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge label={labelOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} tone={toneOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} />
+                        </td>
                         <td className="px-4 py-3"><StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} /></td>
                         <td className="px-4 py-3"><StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} /></td>
                         <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
