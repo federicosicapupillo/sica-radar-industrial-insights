@@ -275,6 +275,7 @@ function ListPage() {
             <FilterInput label="Altezza min (m)" type="number" value={filters.height_min} onChange={(v) => setFilters({ ...filters, height_min: v })} />
             <FilterSelect label="Accesso bilici" value={filters.truck_access} options={[{ value: "si", label: "Sì" }, { value: "no", label: "No" }]} onChange={(v) => setFilters({ ...filters, truck_access: v })} />
             <FilterSelect label="Piazzale esterno" value={filters.has_yard} options={[{ value: "si", label: "Presente" }]} onChange={(v) => setFilters({ ...filters, has_yard: v })} />
+            <FilterSelect label="Stato chiamata occupante" value={filters.occupant_status} options={OCCUPANT_CONTACT_STATUS as never} onChange={(v) => setFilters({ ...filters, occupant_status: v })} />
             <div className="flex items-end">
               <button
                 onClick={() => setFilters(emptyFilters)}
