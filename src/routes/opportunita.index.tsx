@@ -386,8 +386,15 @@ function ListPage() {
                       {o.internal_height ? <span>· h {o.internal_height} m</span> : null}
                       {o.truck_access ? <span>· bilici</span> : null}
                     </div>
+                    {(o.occupant_company_name || o.occupant_phone) && (
+                      <div className="mt-2 text-xs">
+                        {o.occupant_company_name && <div className="text-foreground truncate">{o.occupant_company_name}</div>}
+                        {o.occupant_phone && <div className="text-primary tabular-nums">{o.occupant_phone}</div>}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} />
+                      <StatusBadge label={labelOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} tone={toneOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} />
                       {fromMis && <MisuratoreTag />}
                       {(fromMis || o.compatibility_score != null) && (
                         <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} />
