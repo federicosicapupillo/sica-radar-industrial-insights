@@ -41,6 +41,7 @@ type Filters = {
   has_geo_file: boolean;
   has_maps_link: boolean;
   has_earth_link: boolean;
+  occupant_status: string;
 };
 
 const emptyFilters: Filters = {
@@ -62,6 +63,7 @@ const emptyFilters: Filters = {
   has_geo_file: false,
   has_maps_link: false,
   has_earth_link: false,
+  occupant_status: "",
 };
 
 
