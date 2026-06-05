@@ -11,10 +11,11 @@ import {
   PRIORITIES,
   PROPERTY_TYPES,
   ALREADY_FOR_SALE,
+  OCCUPANT_CONTACT_STATUS,
   labelOf,
   toneOf,
 } from "@/lib/enums";
-import { PlusCircle, Search, Filter, X } from "lucide-react";
+import { PlusCircle, Search, Filter, X, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/opportunita/")({
   component: ListPage,
