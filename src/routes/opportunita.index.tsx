@@ -235,6 +235,32 @@ function ListPage() {
           />
         </div>
 
+        {/* Occupant call status chips */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground mr-1">
+            <Phone className="w-3 h-3" /> Stato chiamata occupante:
+          </span>
+          {[
+            { v: "da_chiamare", l: "Da chiamare" },
+            { v: "chiamato", l: "Chiamato" },
+            { v: "sono_proprietari", l: "Sono proprietari" },
+            { v: "sono_affittuari", l: "Sono affittuari" },
+            { v: "proprieta_indicata", l: "Proprietà indicata" },
+            { v: "proprieta_non_indicata", l: "Proprietà da identificare" },
+            { v: "richiamare", l: "Richiamare" },
+            { v: "non_interessati", l: "Non interessati" },
+          ].map((c) => (
+            <Toggle
+              key={c.v}
+              active={filters.occupant_status === c.v}
+              onClick={() => setFilters({ ...filters, occupant_status: filters.occupant_status === c.v ? "" : c.v })}
+              label={c.l}
+            />
+          ))}
+        </div>
+
+
+
 
         {open && (
           <div className="bg-card border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
