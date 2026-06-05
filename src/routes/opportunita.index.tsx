@@ -123,6 +123,9 @@ function ListPage() {
     if (filters.has_geo_file) r = r.filter((o) => !!o.uploaded_file_url || !!o.geojson_data);
     if (filters.has_maps_link) r = r.filter((o) => !!o.google_maps_url);
     if (filters.has_earth_link) r = r.filter((o) => !!o.google_earth_url);
+    if (filters.occupant_status) {
+      r = r.filter((o) => (o.occupant_contact_status ?? "da_chiamare") === filters.occupant_status);
+    }
 
 
     if (sort === "compat_desc" || sort === "compat_asc") {
