@@ -161,6 +161,8 @@ function DetailPage() {
             </div>
           </Card>
 
+          <OccupantContactCard opp={opp as never} />
+
           {isFromMisuratore(opp) && <MeasurementCard opp={opp as unknown as OppRow} />}
 
           <Card title="Dati tecnici">
