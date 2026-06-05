@@ -308,6 +308,8 @@ function ListPage() {
                     <th className="text-right px-4 py-3 font-medium">Altezza</th>
                     <th className="text-center px-4 py-3 font-medium">Bilici</th>
                     <th className="text-left px-4 py-3 font-medium">Compatibilità</th>
+                    <th className="text-left px-4 py-3 font-medium">Occupante</th>
+                    <th className="text-left px-4 py-3 font-medium">Stato chiamata</th>
                     <th className="text-left px-4 py-3 font-medium">Stato</th>
                     <th className="text-left px-4 py-3 font-medium">Priorità</th>
                     <th className="text-right px-4 py-3 font-medium">Aggiornato</th>
