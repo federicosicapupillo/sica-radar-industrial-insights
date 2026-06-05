@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   Archive,
   Phone,
+  PhoneCall,
   Clock,
   Ruler,
 } from "lucide-react";
@@ -38,7 +39,7 @@ function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("opportunities")
-        .select("id,title,city,province,property_type,opportunity_status,priority,updated_at,created_at,measurement_source,compatibility_score,compatibility_status,last_measured_at")
+        .select("id,title,city,province,property_type,opportunity_status,priority,updated_at,created_at,measurement_source,compatibility_score,compatibility_status,last_measured_at,occupant_company_name,occupant_phone,occupant_contact_status,last_call_date,call_outcome,is_owner_confirmed,is_tenant_confirmed,indicated_owner_name,next_action,next_action_date")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -47,14 +48,23 @@ function Dashboard() {
 
   const opps = data ?? [];
   const count = (status: string) => opps.filter((o) => o.opportunity_status === status).length;
+  const occCount = (s: string) => opps.filter((o) => (o.occupant_contact_status ?? "da_chiamare") === s).length;
+  const callsDone = opps.filter((o) => !!o.last_call_date).length;
+  const ownersIdentified = opps.filter((o) => o.is_owner_confirmed === true || !!o.indicated_owner_name).length;
+  const ownersToIdentify = opps.filter((o) => (o.occupant_contact_status ?? "") === "proprieta_non_indicata" || o.opportunity_status === "proprieta_da_identificare").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const callbacksScheduled = opps.filter((o) => o.next_action_date && String(o.next_action_date) >= today).length;
+  const potentiallyAcquirable = opps.filter((o) => o.priority === "alta" && ["interessante", "contatto_trovato"].includes(o.opportunity_status ?? "")).length;
 
   const stats = [
     { label: "Totale opportunità", value: opps.length, icon: Building2, tone: "default" },
-    { label: "Interessanti", value: count("interessante"), icon: TrendingUp, tone: "info" },
-    { label: "Da verificare", value: count("da_verificare"), icon: AlertCircle, tone: "warning" },
-    { label: "Contatto trovato", value: count("contatto_trovato"), icon: Phone, tone: "info" },
+    { label: "Da chiamare", value: occCount("da_chiamare"), icon: Phone, tone: "warning" },
+    { label: "Chiamate effettuate", value: callsDone, icon: PhoneCall, tone: "info" },
+    { label: "Proprietà identificate", value: ownersIdentified, icon: CheckCircle2, tone: "success" },
+    { label: "Proprietà da identificare", value: ownersToIdentify, icon: AlertCircle, tone: "warning" },
+    { label: "Richiamate programmate", value: callbacksScheduled, icon: Clock, tone: "info" },
+    { label: "Potenzialmente acquisibili", value: potentiallyAcquirable, icon: TrendingUp, tone: "success" },
     { label: "In trattativa", value: count("in_trattativa"), icon: CheckCircle2, tone: "success" },
-    { label: "Archiviate", value: count("archiviato"), icon: Archive, tone: "muted" },
   ];
 
   const quickActions = [

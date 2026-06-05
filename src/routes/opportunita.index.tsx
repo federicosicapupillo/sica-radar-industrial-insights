@@ -11,10 +11,11 @@ import {
   PRIORITIES,
   PROPERTY_TYPES,
   ALREADY_FOR_SALE,
+  OCCUPANT_CONTACT_STATUS,
   labelOf,
   toneOf,
 } from "@/lib/enums";
-import { PlusCircle, Search, Filter, X } from "lucide-react";
+import { PlusCircle, Search, Filter, X, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/opportunita/")({
   component: ListPage,
@@ -41,6 +42,7 @@ type Filters = {
   has_geo_file: boolean;
   has_maps_link: boolean;
   has_earth_link: boolean;
+  occupant_status: string;
 };
 
 const emptyFilters: Filters = {
@@ -62,6 +64,7 @@ const emptyFilters: Filters = {
   has_geo_file: false,
   has_maps_link: false,
   has_earth_link: false,
+  occupant_status: "",
 };
 
 
@@ -121,6 +124,9 @@ function ListPage() {
     if (filters.has_geo_file) r = r.filter((o) => !!o.uploaded_file_url || !!o.geojson_data);
     if (filters.has_maps_link) r = r.filter((o) => !!o.google_maps_url);
     if (filters.has_earth_link) r = r.filter((o) => !!o.google_earth_url);
+    if (filters.occupant_status) {
+      r = r.filter((o) => (o.occupant_contact_status ?? "da_chiamare") === filters.occupant_status);
+    }
 
 
     if (sort === "compat_desc" || sort === "compat_asc") {
@@ -229,6 +235,32 @@ function ListPage() {
           />
         </div>
 
+        {/* Occupant call status chips */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground mr-1">
+            <Phone className="w-3 h-3" /> Stato chiamata occupante:
+          </span>
+          {[
+            { v: "da_chiamare", l: "Da chiamare" },
+            { v: "chiamato", l: "Chiamato" },
+            { v: "sono_proprietari", l: "Sono proprietari" },
+            { v: "sono_affittuari", l: "Sono affittuari" },
+            { v: "proprieta_indicata", l: "Proprietà indicata" },
+            { v: "proprieta_non_indicata", l: "Proprietà da identificare" },
+            { v: "richiamare", l: "Richiamare" },
+            { v: "non_interessati", l: "Non interessati" },
+          ].map((c) => (
+            <Toggle
+              key={c.v}
+              active={filters.occupant_status === c.v}
+              onClick={() => setFilters({ ...filters, occupant_status: filters.occupant_status === c.v ? "" : c.v })}
+              label={c.l}
+            />
+          ))}
+        </div>
+
+
+
 
         {open && (
           <div className="bg-card border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -243,6 +275,7 @@ function ListPage() {
             <FilterInput label="Altezza min (m)" type="number" value={filters.height_min} onChange={(v) => setFilters({ ...filters, height_min: v })} />
             <FilterSelect label="Accesso bilici" value={filters.truck_access} options={[{ value: "si", label: "Sì" }, { value: "no", label: "No" }]} onChange={(v) => setFilters({ ...filters, truck_access: v })} />
             <FilterSelect label="Piazzale esterno" value={filters.has_yard} options={[{ value: "si", label: "Presente" }]} onChange={(v) => setFilters({ ...filters, has_yard: v })} />
+            <FilterSelect label="Stato chiamata occupante" value={filters.occupant_status} options={OCCUPANT_CONTACT_STATUS as never} onChange={(v) => setFilters({ ...filters, occupant_status: v })} />
             <div className="flex items-end">
               <button
                 onClick={() => setFilters(emptyFilters)}
@@ -275,6 +308,8 @@ function ListPage() {
                     <th className="text-right px-4 py-3 font-medium">Altezza</th>
                     <th className="text-center px-4 py-3 font-medium">Bilici</th>
                     <th className="text-left px-4 py-3 font-medium">Compatibilità</th>
+                    <th className="text-left px-4 py-3 font-medium">Occupante</th>
+                    <th className="text-left px-4 py-3 font-medium">Stato chiamata</th>
                     <th className="text-left px-4 py-3 font-medium">Stato</th>
                     <th className="text-left px-4 py-3 font-medium">Priorità</th>
                     <th className="text-right px-4 py-3 font-medium">Aggiornato</th>
@@ -302,6 +337,21 @@ function ListPage() {
                           {fromMis || o.compatibility_score != null
                             ? <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} showLabel={false} />
                             : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {o.occupant_company_name ? (
+                            <div className="min-w-0">
+                              <div className="text-foreground truncate">{o.occupant_company_name}</div>
+                              {o.occupant_phone && (
+                                <a href={`tel:${String(o.occupant_phone).replace(/\s+/g, "")}`} className="text-xs text-primary hover:underline tabular-nums">
+                                  {o.occupant_phone}
+                                </a>
+                              )}
+                            </div>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge label={labelOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} tone={toneOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} />
                         </td>
                         <td className="px-4 py-3"><StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} /></td>
                         <td className="px-4 py-3"><StatusBadge label={labelOf(PRIORITIES, o.priority)} tone={toneOf(PRIORITIES, o.priority)} /></td>
@@ -336,8 +386,15 @@ function ListPage() {
                       {o.internal_height ? <span>· h {o.internal_height} m</span> : null}
                       {o.truck_access ? <span>· bilici</span> : null}
                     </div>
+                    {(o.occupant_company_name || o.occupant_phone) && (
+                      <div className="mt-2 text-xs">
+                        {o.occupant_company_name && <div className="text-foreground truncate">{o.occupant_company_name}</div>}
+                        {o.occupant_phone && <div className="text-primary tabular-nums">{o.occupant_phone}</div>}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <StatusBadge label={labelOf(OPPORTUNITY_STATUS, o.opportunity_status)} tone={toneOf(OPPORTUNITY_STATUS, o.opportunity_status)} />
+                      <StatusBadge label={labelOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} tone={toneOf(OCCUPANT_CONTACT_STATUS, o.occupant_contact_status || "da_chiamare")} />
                       {fromMis && <MisuratoreTag />}
                       {(fromMis || o.compatibility_score != null) && (
                         <CompatibilityBadge score={o.compatibility_score} status={o.compatibility_status} />

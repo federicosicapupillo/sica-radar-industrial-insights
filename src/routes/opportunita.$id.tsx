@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompatibilityBadge, MisuratoreTag } from "@/components/CompatibilityBadge";
+import { OccupantContactCard } from "@/components/OccupantContactCard";
 import {
   isFromMisuratore,
   fmtOrMissing,
@@ -159,6 +160,8 @@ function DetailPage() {
               </Stat>
             </div>
           </Card>
+
+          <OccupantContactCard opp={opp as never} />
 
           {isFromMisuratore(opp) && <MeasurementCard opp={opp as unknown as OppRow} />}
 
