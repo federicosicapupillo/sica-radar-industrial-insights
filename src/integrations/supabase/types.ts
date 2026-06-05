@@ -46,6 +46,78 @@ export type Database = {
           },
         ]
       }
+      contact_attempts: {
+        Row: {
+          contact_date: string
+          contact_type: string | null
+          contacted_company: string | null
+          contacted_phone: string | null
+          created_at: string
+          id: string
+          indicated_owner_email: string | null
+          indicated_owner_name: string | null
+          indicated_owner_phone: string | null
+          is_owner_confirmed: boolean | null
+          is_tenant_confirmed: boolean | null
+          next_action: string | null
+          next_action_date: string | null
+          notes: string | null
+          opportunity_id: string | null
+          outcome: string | null
+          owner_contact_provided: boolean | null
+          person_role: string | null
+          person_spoken_to: string | null
+          radar_candidate_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_date?: string
+          contact_type?: string | null
+          contacted_company?: string | null
+          contacted_phone?: string | null
+          created_at?: string
+          id?: string
+          indicated_owner_email?: string | null
+          indicated_owner_name?: string | null
+          indicated_owner_phone?: string | null
+          is_owner_confirmed?: boolean | null
+          is_tenant_confirmed?: boolean | null
+          next_action?: string | null
+          next_action_date?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          outcome?: string | null
+          owner_contact_provided?: boolean | null
+          person_role?: string | null
+          person_spoken_to?: string | null
+          radar_candidate_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_date?: string
+          contact_type?: string | null
+          contacted_company?: string | null
+          contacted_phone?: string | null
+          created_at?: string
+          id?: string
+          indicated_owner_email?: string | null
+          indicated_owner_name?: string | null
+          indicated_owner_phone?: string | null
+          is_owner_confirmed?: boolean | null
+          is_tenant_confirmed?: boolean | null
+          next_action?: string | null
+          next_action_date?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          outcome?: string | null
+          owner_contact_provided?: boolean | null
+          person_role?: string | null
+          person_spoken_to?: string | null
+          radar_candidate_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           company: string | null
@@ -239,6 +311,8 @@ export type Database = {
           address: string | null
           already_for_sale: string | null
           asking_price: number | null
+          call_notes: string | null
+          call_outcome: string | null
           city: string | null
           client_name: string | null
           commercial_notes: string | null
@@ -258,10 +332,16 @@ export type Database = {
           has_crane: boolean | null
           has_offices: boolean | null
           id: string
+          indicated_owner_email: string | null
+          indicated_owner_name: string | null
+          indicated_owner_phone: string | null
           industrial_area: string | null
           intended_use: string | null
           internal_height: number | null
+          is_owner_confirmed: boolean | null
+          is_tenant_confirmed: boolean | null
           kml_file_url: string | null
+          last_call_date: string | null
           last_measured_at: string | null
           latitude: number | null
           loading_doors: number | null
@@ -280,10 +360,24 @@ export type Database = {
           near_port: boolean | null
           next_action: string | null
           next_action_date: string | null
+          occupant_company_name: string | null
+          occupant_contact_confidence: string | null
+          occupant_contact_notes: string | null
+          occupant_contact_source: string | null
+          occupant_contact_status: string | null
+          occupant_email: string | null
+          occupant_phone: string | null
+          occupant_reference_name: string | null
+          occupant_reference_role: string | null
+          occupant_sign_name: string | null
+          occupant_website: string | null
           occupying_company: string | null
           office_sqm: number | null
           offices_status: string | null
           opportunity_status: string
+          owner_contact_provided: boolean | null
+          person_role: string | null
+          person_spoken_to: string | null
           phone: string | null
           possible_owner: string | null
           power_available: string | null
@@ -320,6 +414,8 @@ export type Database = {
           address?: string | null
           already_for_sale?: string | null
           asking_price?: number | null
+          call_notes?: string | null
+          call_outcome?: string | null
           city?: string | null
           client_name?: string | null
           commercial_notes?: string | null
@@ -339,10 +435,16 @@ export type Database = {
           has_crane?: boolean | null
           has_offices?: boolean | null
           id?: string
+          indicated_owner_email?: string | null
+          indicated_owner_name?: string | null
+          indicated_owner_phone?: string | null
           industrial_area?: string | null
           intended_use?: string | null
           internal_height?: number | null
+          is_owner_confirmed?: boolean | null
+          is_tenant_confirmed?: boolean | null
           kml_file_url?: string | null
+          last_call_date?: string | null
           last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
@@ -361,10 +463,24 @@ export type Database = {
           near_port?: boolean | null
           next_action?: string | null
           next_action_date?: string | null
+          occupant_company_name?: string | null
+          occupant_contact_confidence?: string | null
+          occupant_contact_notes?: string | null
+          occupant_contact_source?: string | null
+          occupant_contact_status?: string | null
+          occupant_email?: string | null
+          occupant_phone?: string | null
+          occupant_reference_name?: string | null
+          occupant_reference_role?: string | null
+          occupant_sign_name?: string | null
+          occupant_website?: string | null
           occupying_company?: string | null
           office_sqm?: number | null
           offices_status?: string | null
           opportunity_status?: string
+          owner_contact_provided?: boolean | null
+          person_role?: string | null
+          person_spoken_to?: string | null
           phone?: string | null
           possible_owner?: string | null
           power_available?: string | null
@@ -401,6 +517,8 @@ export type Database = {
           address?: string | null
           already_for_sale?: string | null
           asking_price?: number | null
+          call_notes?: string | null
+          call_outcome?: string | null
           city?: string | null
           client_name?: string | null
           commercial_notes?: string | null
@@ -420,10 +538,16 @@ export type Database = {
           has_crane?: boolean | null
           has_offices?: boolean | null
           id?: string
+          indicated_owner_email?: string | null
+          indicated_owner_name?: string | null
+          indicated_owner_phone?: string | null
           industrial_area?: string | null
           intended_use?: string | null
           internal_height?: number | null
+          is_owner_confirmed?: boolean | null
+          is_tenant_confirmed?: boolean | null
           kml_file_url?: string | null
+          last_call_date?: string | null
           last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
@@ -442,10 +566,24 @@ export type Database = {
           near_port?: boolean | null
           next_action?: string | null
           next_action_date?: string | null
+          occupant_company_name?: string | null
+          occupant_contact_confidence?: string | null
+          occupant_contact_notes?: string | null
+          occupant_contact_source?: string | null
+          occupant_contact_status?: string | null
+          occupant_email?: string | null
+          occupant_phone?: string | null
+          occupant_reference_name?: string | null
+          occupant_reference_role?: string | null
+          occupant_sign_name?: string | null
+          occupant_website?: string | null
           occupying_company?: string | null
           office_sqm?: number | null
           offices_status?: string | null
           opportunity_status?: string
+          owner_contact_provided?: boolean | null
+          person_role?: string | null
+          person_spoken_to?: string | null
           phone?: string | null
           possible_owner?: string | null
           power_available?: string | null
