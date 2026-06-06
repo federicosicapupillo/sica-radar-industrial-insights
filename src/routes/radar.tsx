@@ -511,9 +511,9 @@ function OsmView() {
                   >
                     OSM <ExternalLink className="w-3 h-3" />
                   </a>
-                  {existingId ? (
+                  {match?.exact ? (
                     <button
-                      onClick={() => openExisting(existingId)}
+                      onClick={() => openExisting(match.opportunityId)}
                       className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
                     >
                       <ExternalLink className="w-3.5 h-3.5" /> Apri opportunità
