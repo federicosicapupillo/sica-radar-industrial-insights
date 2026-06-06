@@ -528,53 +528,130 @@ function OsmView() {
 
       {/* Form */}
       <section className="bg-card border rounded-lg p-5 space-y-4">
-        <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1.5">Preset zone operative</div>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => { setLat(String(p.lat)); setLon(String(p.lon)); setRadiusKm("4"); toast.info(`Preset: ${p.label} (raggio 4 km)`); }}
-                className="text-xs px-2.5 py-1 rounded-md border bg-card hover:bg-accent"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Field label="Latitudine" value={lat} onChange={setLat} placeholder="45.4642" />
-          <Field label="Longitudine" value={lon} onChange={setLon} placeholder="9.1900" />
-          <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="3" type="number" />
-          <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
-          <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
-        </div>
-        <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
-          Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={runSearch}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? "Ricerca in corso..." : "Avvia ricerca reale OSM"}
-          </button>
-          <a
-            href={`https://www.google.com/maps?q=${lat},${lon}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border bg-card hover:bg-accent"
-          >
-            Apri centro su Maps <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        {error && <div className="text-sm text-destructive">{error}</div>}
+        {(() => {
+          const region = ZONES.find((r) => r.name === selRegion);
+          const province = region?.provinces.find((p) => p.name === selProvince);
+          const filter = zoneFilter.trim().toLowerCase();
+          const zoneList = (province?.zones ?? []).filter((z) =>
+            !filter || z.label.toLowerCase().includes(filter) || (province?.name ?? "").toLowerCase().includes(filter)
+          );
+          const zone = province?.zones.find((z) => z.label === selZone);
+          const canSearch = !!zone || (Number(lat) && Number(lon) && Number(radiusKm) > 0);
+          return (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Regione</label>
+                  <select
+                    value={selRegion}
+                    onChange={(e) => { setSelRegion(e.target.value); setSelProvince(""); setSelZone(""); }}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm"
+                  >
+                    <option value="">— Seleziona regione —</option>
+                    {ZONES.map((r) => (
+                      <option key={r.name} value={r.name} disabled={r.provinces.length === 0}>
+                        {r.name}{r.provinces.length === 0 ? " (presto)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Provincia</label>
+                  <select
+                    value={selProvince}
+                    onChange={(e) => { setSelProvince(e.target.value); setSelZone(""); }}
+                    disabled={!region || region.provinces.length === 0}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                  >
+                    <option value="">— Seleziona provincia —</option>
+                    {region?.provinces.map((p) => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Città / zona industriale</label>
+                  <select
+                    value={selZone}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelZone(v);
+                      const z = province?.zones.find((zz) => zz.label === v);
+                      if (z) {
+                        setLat(String(z.lat));
+                        setLon(String(z.lon));
+                        setRadiusKm(String(z.radiusKm));
+                      }
+                    }}
+                    disabled={!province}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                  >
+                    <option value="">— Seleziona zona —</option>
+                    {zoneList.map((z) => (
+                      <option key={z.label} value={z.label}>{z.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={zoneFilter}
+                onChange={(e) => setZoneFilter(e.target.value)}
+                placeholder="Cerca città o zona…"
+                className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+              />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
+                <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
+                <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
+              </div>
+              {zone && (
+                <div className="text-xs bg-muted/30 border rounded-md px-3 py-2">
+                  Zona selezionata: <b>{zone.label}</b> — coordinate usate: <b>{zone.lat.toFixed(4)}, {zone.lon.toFixed(4)}</b> — raggio consigliato <b>{zone.radiusKm} km</b>
+                </div>
+              )}
+              <details open={advancedOpen} onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)} className="border rounded-md">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground select-none">
+                  Coordinate avanzate (opzionale)
+                </summary>
+                <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Latitudine" value={lat} onChange={setLat} placeholder="44.0350" />
+                  <Field label="Longitudine" value={lon} onChange={setLon} placeholder="10.1390" />
+                  <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+                </div>
+              </details>
+              <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
+                Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={runSearch}
+                  disabled={loading || !canSearch}
+                  title={!canSearch ? "Seleziona una zona o inserisci coordinate avanzate" : ""}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {loading ? "Ricerca in corso..." : "Avvia ricerca reale OSM"}
+                </button>
+                {lat && lon && (
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lon}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Apri centro su Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              {error && <div className="text-sm text-destructive">{error}</div>}
+            </>
+          );
+        })()}
+
       </section>
 
       {meta && (
