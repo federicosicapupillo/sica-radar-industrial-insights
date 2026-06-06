@@ -131,6 +131,9 @@ function OsmView() {
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
+  const [existingMap, setExistingMap] = useState<Record<string, string>>({}); // osm_id -> opportunity_id
+  const [lastSearches, setLastSearches] = useState<any[]>([]);
+  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; opportunityId: string } | null>(null);
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
@@ -138,10 +141,41 @@ function OsmView() {
   const minSqm = Math.max(0, Math.round(target * (1 - tol / 100)));
   const maxSqm = Math.round(target * (1 + tol / 100));
 
+  const refreshLastSearches = useCallback(async () => {
+    const { data } = await supabase
+      .from("radar_searches" as any)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (data) setLastSearches(data as any[]);
+  }, []);
+
+  useEffect(() => { refreshLastSearches(); }, [refreshLastSearches]);
+
+  async function refreshExisting(candidates: OsmCandidate[]) {
+    if (candidates.length === 0) {
+      setExistingMap({});
+      return;
+    }
+    const urls = candidates.map((c) => `https://www.openstreetmap.org/${c.id}`);
+    const { data } = await supabase
+      .from("opportunities")
+      .select("id, source_url")
+      .eq("source_type", "OpenStreetMap/Overpass")
+      .in("source_url", urls);
+    const map: Record<string, string> = {};
+    (data ?? []).forEach((row: any) => {
+      const m = /openstreetmap\.org\/(.+)$/.exec(row.source_url ?? "");
+      if (m) map[m[1]] = row.id;
+    });
+    setExistingMap(map);
+  }
+
   async function runSearch() {
     setError(null);
     setResults(null);
     setMeta(null);
+    setExistingMap({});
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
@@ -152,8 +186,10 @@ function OsmView() {
       return;
     }
     setLoading(true);
+    let res: OverpassResult | null = null;
+    let runtimeError: string | null = null;
     try {
-      const res = await runOverpass({
+      res = await runOverpass({
         data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol },
       });
       const { candidates, ...rest } = res;
@@ -161,20 +197,55 @@ function OsmView() {
       if (!res.ok) {
         setError(res.error ?? "Ricerca OSM non completata. Overpass non disponibile o troppo lento. Riprova riducendo raggio o cambiando zona.");
         setResults([]);
-        return;
+      } else {
+        setResults(candidates);
+        await refreshExisting(candidates);
+        if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
+        else toast.success(`${candidates.length} candidati trovati`);
       }
-      setResults(candidates);
-      if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
-      else toast.success(`${candidates.length} candidati trovati`);
     } catch (e: any) {
-      setError(e?.message ?? "Errore Overpass");
+      runtimeError = e?.message ?? "Errore Overpass";
+      setError(runtimeError);
     } finally {
       setLoading(false);
     }
+    // Log search to history
+    try {
+      await supabase.from("radar_searches" as any).insert({
+        latitude: la,
+        longitude: lo,
+        radius_km: rk,
+        target_covered_sqm: target,
+        tolerance_percent: tol,
+        min_covered_sqm: minSqm,
+        max_covered_sqm: maxSqm,
+        source_type: "OpenStreetMap/Overpass",
+        endpoint_used: res?.endpointUsed ?? null,
+        response_time_ms: res?.responseTimeMs ?? null,
+        raw_results_count: res?.rawCount ?? 0,
+        compatible_results_count: res?.candidates.length ?? 0,
+        search_status: res?.ok ? "ok" : "error",
+        error_message: runtimeError ?? res?.error ?? null,
+      });
+      refreshLastSearches();
+    } catch { /* non bloccare UI */ }
   }
 
+  function repeatSearch(s: any) {
+    setLat(String(s.latitude ?? ""));
+    setLon(String(s.longitude ?? ""));
+    setRadiusKm(String(s.radius_km ?? ""));
+    setTargetSqm(String(s.target_covered_sqm ?? ""));
+    setTolerancePct(String(s.tolerance_percent ?? ""));
+    toast.info("Parametri caricati. Clicca Avvia ricerca per rilanciare.");
+  }
 
-  async function saveCandidate(c: OsmCandidate) {
+  async function saveCandidate(c: OsmCandidate, force = false) {
+    const existingId = existingMap[c.id];
+    if (existingId && !force) {
+      setConfirmDup({ c, opportunityId: existingId });
+      return;
+    }
     setSavingId(c.id);
     try {
       const status = compatStatusFromScore(c.compatibility);
@@ -228,8 +299,14 @@ function OsmView() {
       toast.error(e?.message ?? "Errore salvataggio");
     } finally {
       setSavingId(null);
+      setConfirmDup(null);
     }
   }
+
+  function openExisting(opportunityId: string) {
+    navigate({ to: "/opportunita/$id", params: { id: opportunityId } });
+  }
+
 
   return (
     <>
