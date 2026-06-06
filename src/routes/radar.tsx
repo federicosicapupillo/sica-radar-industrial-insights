@@ -377,7 +377,7 @@ function OsmView() {
     let runtimeError: string | null = null;
     try {
       res = await runOverpass({
-        data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol },
+        data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol, mode: searchMode },
       });
       const { candidates, ...rest } = res;
       setMeta(rest);
