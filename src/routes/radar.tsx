@@ -119,19 +119,99 @@ function DemoView() {
 
 // ----------------- OSM view -----------------
 
-const PRESETS: { label: string; lat: number; lon: number }[] = [
-  { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390 },
-  { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850 },
-  { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280 },
-  { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700 },
-  { label: "Santo Stefano Magra / La Spezia", lat: 44.1510, lon: 9.9150 },
+type Zone = { label: string; lat: number; lon: number; radiusKm: number };
+type Province = { name: string; zones: Zone[] };
+type Region = { name: string; provinces: Province[] };
+
+const ZONES: Region[] = [
+  {
+    name: "Toscana",
+    provinces: [
+      { name: "Massa-Carrara", zones: [
+        { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390, radiusKm: 4 },
+        { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850, radiusKm: 4 },
+        { label: "Carrara zona industriale / marmo", lat: 44.0800, lon: 10.1000, radiusKm: 4 },
+      ]},
+      { name: "Lucca", zones: [
+        { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280, radiusKm: 4 },
+        { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700, radiusKm: 4 },
+      ]},
+      { name: "Pisa", zones: [
+        { label: "Pisa / Navicelli", lat: 43.6880, lon: 10.3910, radiusKm: 4 },
+      ]},
+    ],
+  },
+  {
+    name: "Liguria",
+    provinces: [
+      { name: "La Spezia", zones: [
+        { label: "La Spezia zona porto / industriale", lat: 44.1070, lon: 9.8280, radiusKm: 5 },
+        { label: "Santo Stefano Magra", lat: 44.1510, lon: 9.9150, radiusKm: 4 },
+        { label: "Sarzana", lat: 44.1110, lon: 9.9630, radiusKm: 4 },
+        { label: "Arcola / Vezzano Ligure", lat: 44.1190, lon: 9.8950, radiusKm: 4 },
+      ]},
+      { name: "Genova", zones: [
+        { label: "Genova / Bolzaneto", lat: 44.4560, lon: 8.9010, radiusKm: 5 },
+      ]},
+    ],
+  },
+  {
+    name: "Emilia-Romagna",
+    provinces: [
+      { name: "Parma", zones: [{ label: "Parma zona industriale", lat: 44.8050, lon: 10.3280, radiusKm: 5 }] },
+      { name: "Reggio Emilia", zones: [{ label: "Reggio Emilia zona industriale", lat: 44.6980, lon: 10.6310, radiusKm: 5 }] },
+      { name: "Modena", zones: [{ label: "Modena zona industriale", lat: 44.6470, lon: 10.9250, radiusKm: 5 }] },
+      { name: "Bologna", zones: [{ label: "Bologna / Interporto", lat: 44.6200, lon: 11.4100, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Lombardia",
+    provinces: [
+      { name: "Milano", zones: [
+        { label: "Milano hinterland industriale", lat: 45.4642, lon: 9.1900, radiusKm: 5 },
+        { label: "Rho / Pero", lat: 45.5320, lon: 9.0400, radiusKm: 5 },
+      ]},
+      { name: "Monza e Brianza", zones: [{ label: "Monza / Brianza", lat: 45.5840, lon: 9.2740, radiusKm: 5 }] },
+      { name: "Bergamo", zones: [{ label: "Bergamo zona industriale", lat: 45.6980, lon: 9.6770, radiusKm: 5 }] },
+      { name: "Brescia", zones: [{ label: "Brescia zona industriale", lat: 45.5410, lon: 10.2110, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Piemonte",
+    provinces: [
+      { name: "Torino", zones: [
+        { label: "Torino zona industriale", lat: 45.0700, lon: 7.6860, radiusKm: 5 },
+        { label: "Orbassano / Rivalta", lat: 45.0050, lon: 7.5380, radiusKm: 5 },
+      ]},
+      { name: "Novara", zones: [{ label: "Novara zona industriale", lat: 45.4460, lon: 8.6220, radiusKm: 5 }] },
+      { name: "Alessandria", zones: [{ label: "Alessandria zona industriale", lat: 44.9130, lon: 8.6150, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Veneto",
+    provinces: [
+      { name: "Verona", zones: [{ label: "Verona zona industriale", lat: 45.4380, lon: 10.9910, radiusKm: 5 }] },
+      { name: "Padova", zones: [{ label: "Padova zona industriale", lat: 45.4060, lon: 11.8760, radiusKm: 5 }] },
+      { name: "Vicenza", zones: [{ label: "Vicenza zona industriale", lat: 45.5450, lon: 11.5350, radiusKm: 5 }] },
+      { name: "Venezia", zones: [{ label: "Venezia / Marghera", lat: 45.4660, lon: 12.2560, radiusKm: 5 }] },
+    ],
+  },
+  { name: "Friuli-Venezia Giulia", provinces: [] },
+  { name: "Trentino-Alto Adige", provinces: [] },
+  { name: "Valle d'Aosta", provinces: [] },
 ];
 
 function OsmView() {
   const navigate = useNavigate();
-  const [lat, setLat] = useState("45.4642");
-  const [lon, setLon] = useState("9.1900");
-  const [radiusKm, setRadiusKm] = useState("3");
+  const [selRegion, setSelRegion] = useState<string>("");
+  const [selProvince, setSelProvince] = useState<string>("");
+  const [selZone, setSelZone] = useState<string>("");
+  const [zoneFilter, setZoneFilter] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [radiusKm, setRadiusKm] = useState("4");
+
   const [targetSqm, setTargetSqm] = useState("4000");
   const [tolerancePct, setTolerancePct] = useState("30");
   const [loading, setLoading] = useState(false);
@@ -448,53 +528,130 @@ function OsmView() {
 
       {/* Form */}
       <section className="bg-card border rounded-lg p-5 space-y-4">
-        <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1.5">Preset zone operative</div>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => { setLat(String(p.lat)); setLon(String(p.lon)); setRadiusKm("4"); toast.info(`Preset: ${p.label} (raggio 4 km)`); }}
-                className="text-xs px-2.5 py-1 rounded-md border bg-card hover:bg-accent"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Field label="Latitudine" value={lat} onChange={setLat} placeholder="45.4642" />
-          <Field label="Longitudine" value={lon} onChange={setLon} placeholder="9.1900" />
-          <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="3" type="number" />
-          <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
-          <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
-        </div>
-        <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
-          Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={runSearch}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? "Ricerca in corso..." : "Avvia ricerca reale OSM"}
-          </button>
-          <a
-            href={`https://www.google.com/maps?q=${lat},${lon}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border bg-card hover:bg-accent"
-          >
-            Apri centro su Maps <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        {error && <div className="text-sm text-destructive">{error}</div>}
+        {(() => {
+          const region = ZONES.find((r) => r.name === selRegion);
+          const province = region?.provinces.find((p) => p.name === selProvince);
+          const filter = zoneFilter.trim().toLowerCase();
+          const zoneList = (province?.zones ?? []).filter((z) =>
+            !filter || z.label.toLowerCase().includes(filter) || (province?.name ?? "").toLowerCase().includes(filter)
+          );
+          const zone = province?.zones.find((z) => z.label === selZone);
+          const canSearch = !!zone || (Number(lat) && Number(lon) && Number(radiusKm) > 0);
+          return (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Regione</label>
+                  <select
+                    value={selRegion}
+                    onChange={(e) => { setSelRegion(e.target.value); setSelProvince(""); setSelZone(""); }}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm"
+                  >
+                    <option value="">— Seleziona regione —</option>
+                    {ZONES.map((r) => (
+                      <option key={r.name} value={r.name} disabled={r.provinces.length === 0}>
+                        {r.name}{r.provinces.length === 0 ? " (presto)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Provincia</label>
+                  <select
+                    value={selProvince}
+                    onChange={(e) => { setSelProvince(e.target.value); setSelZone(""); }}
+                    disabled={!region || region.provinces.length === 0}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                  >
+                    <option value="">— Seleziona provincia —</option>
+                    {region?.provinces.map((p) => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Città / zona industriale</label>
+                  <select
+                    value={selZone}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelZone(v);
+                      const z = province?.zones.find((zz) => zz.label === v);
+                      if (z) {
+                        setLat(String(z.lat));
+                        setLon(String(z.lon));
+                        setRadiusKm(String(z.radiusKm));
+                      }
+                    }}
+                    disabled={!province}
+                    className="w-full mt-1 h-9 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                  >
+                    <option value="">— Seleziona zona —</option>
+                    {zoneList.map((z) => (
+                      <option key={z.label} value={z.label}>{z.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={zoneFilter}
+                onChange={(e) => setZoneFilter(e.target.value)}
+                placeholder="Cerca città o zona…"
+                className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+              />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
+                <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
+                <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
+              </div>
+              {zone && (
+                <div className="text-xs bg-muted/30 border rounded-md px-3 py-2">
+                  Zona selezionata: <b>{zone.label}</b> — coordinate usate: <b>{zone.lat.toFixed(4)}, {zone.lon.toFixed(4)}</b> — raggio consigliato <b>{zone.radiusKm} km</b>
+                </div>
+              )}
+              <details open={advancedOpen} onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)} className="border rounded-md">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground select-none">
+                  Coordinate avanzate (opzionale)
+                </summary>
+                <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Latitudine" value={lat} onChange={setLat} placeholder="44.0350" />
+                  <Field label="Longitudine" value={lon} onChange={setLon} placeholder="10.1390" />
+                  <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+                </div>
+              </details>
+              <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
+                Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={runSearch}
+                  disabled={loading || !canSearch}
+                  title={!canSearch ? "Seleziona una zona o inserisci coordinate avanzate" : ""}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {loading ? "Ricerca in corso..." : "Avvia ricerca reale OSM"}
+                </button>
+                {lat && lon && (
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lon}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Apri centro su Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              {error && <div className="text-sm text-destructive">{error}</div>}
+            </>
+          );
+        })()}
+
       </section>
 
       {meta && (
