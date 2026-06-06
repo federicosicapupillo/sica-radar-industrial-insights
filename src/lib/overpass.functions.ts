@@ -25,6 +25,14 @@ export type OsmCandidatePayload = {
   compatibility: number;
 };
 
+export type OverpassAttempt = {
+  host: string;
+  ok: boolean;
+  status: number | null;
+  message: string;
+  durationMs: number;
+};
+
 export type OverpassResult = {
   ok: boolean;
   endpointUsed: string | null;
@@ -33,6 +41,7 @@ export type OverpassResult = {
   candidates: OsmCandidatePayload[];
   error: string | null;
   cached: boolean;
+  attempts: OverpassAttempt[];
 };
 
 function polygonAreaSqm(coords: Array<{ lat: number; lon: number }>): number {
