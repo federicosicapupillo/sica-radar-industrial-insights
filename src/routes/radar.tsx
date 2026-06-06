@@ -61,7 +61,7 @@ function centroid(coords: Array<{ lat: number; lon: number }>) {
 
 function buildOverpassQL(lat: number, lon: number, radiusKm: number): string {
   const r = Math.max(50, Math.round(radiusKm * 1000));
-  return `[out:json][timeout:50];
+  return `[out:json][timeout:25];
 (
   way["building"="industrial"](around:${r},${lat},${lon});
   way["building"="warehouse"](around:${r},${lat},${lon});
@@ -73,9 +73,11 @@ out tags geom;`;
 }
 
 async function queryOverpass(ql: string): Promise<any> {
+  // kumi.systems risponde più rapidamente da browser; overpass-api.de spesso 504/406 via CORS.
   const endpoints = [
-    "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
   ];
   let lastErr: unknown;
   for (const url of endpoints) {
@@ -85,7 +87,10 @@ async function queryOverpass(ql: string): Promise<any> {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "data=" + encodeURIComponent(ql),
       });
-      if (!res.ok) throw new Error(`Overpass ${res.status}`);
+      if (!res.ok) {
+        lastErr = new Error(`Overpass ${res.status} su ${new URL(url).host}`);
+        continue;
+      }
       return await res.json();
     } catch (e) {
       lastErr = e;
