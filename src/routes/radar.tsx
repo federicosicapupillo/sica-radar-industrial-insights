@@ -290,7 +290,6 @@ function OsmView() {
           {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore endpoint:</span> {meta.error}</div>}
         </section>
       )}
-      </section>
 
       {/* Results */}
       {results && (
