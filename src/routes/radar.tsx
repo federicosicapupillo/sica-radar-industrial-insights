@@ -119,6 +119,14 @@ function DemoView() {
 
 // ----------------- OSM view -----------------
 
+const PRESETS: { label: string; lat: number; lon: number }[] = [
+  { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390 },
+  { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850 },
+  { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280 },
+  { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700 },
+  { label: "Santo Stefano Magra / La Spezia", lat: 44.1510, lon: 9.9150 },
+];
+
 function OsmView() {
   const navigate = useNavigate();
   const [lat, setLat] = useState("45.4642");
