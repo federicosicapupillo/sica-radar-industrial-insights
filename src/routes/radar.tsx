@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink, Search, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -118,6 +118,14 @@ function DemoView() {
 }
 
 // ----------------- OSM view -----------------
+
+const PRESETS: { label: string; lat: number; lon: number }[] = [
+  { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390 },
+  { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850 },
+  { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280 },
+  { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700 },
+  { label: "Santo Stefano Magra / La Spezia", lat: 44.1510, lon: 9.9150 },
+];
 
 function OsmView() {
   const navigate = useNavigate();
@@ -259,7 +267,9 @@ function OsmView() {
     setMatchMap(map);
   }
 
+  const lastRunRef = useRef<{ key: string; at: number } | null>(null);
   async function runSearch() {
+    if (loading) return;
     setError(null);
     setResults(null);
     setMeta(null);
@@ -273,6 +283,14 @@ function OsmView() {
       setError("Inserisci mq target > 0");
       return;
     }
+    const key = `${la.toFixed(5)}|${lo.toFixed(5)}|${rk}|${target}|${tol}`;
+    const now = Date.now();
+    if (lastRunRef.current && lastRunRef.current.key === key && now - lastRunRef.current.at < 10_000) {
+      const left = Math.ceil((10_000 - (now - lastRunRef.current.at)) / 1000);
+      setError(`Stessa ricerca già lanciata. Riprova tra ${left}s o cambia parametri.`);
+      return;
+    }
+    lastRunRef.current = { key, at: now };
     setLoading(true);
     let res: OverpassResult | null = null;
     let runtimeError: string | null = null;
@@ -430,6 +448,21 @@ function OsmView() {
 
       {/* Form */}
       <section className="bg-card border rounded-lg p-5 space-y-4">
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-1.5">Preset zone operative</div>
+          <div className="flex flex-wrap gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => { setLat(String(p.lat)); setLon(String(p.lon)); setRadiusKm("4"); toast.info(`Preset: ${p.label} (raggio 4 km)`); }}
+                className="text-xs px-2.5 py-1 rounded-md border bg-card hover:bg-accent"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Field label="Latitudine" value={lat} onChange={setLat} placeholder="45.4642" />
           <Field label="Longitudine" value={lon} onChange={setLon} placeholder="9.1900" />
@@ -440,6 +473,9 @@ function OsmView() {
         <div className="text-xs text-muted-foreground">
           Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
         </div>
+        <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
+          Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={runSearch}
@@ -447,7 +483,7 @@ function OsmView() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Avvia ricerca reale OSM
+            {loading ? "Ricerca in corso..." : "Avvia ricerca reale OSM"}
           </button>
           <a
             href={`https://www.google.com/maps?q=${lat},${lon}`}
@@ -471,7 +507,19 @@ function OsmView() {
           <div><span className="text-muted-foreground">Tempo risposta:</span> {meta.responseTimeMs} ms{meta.cached ? " (cache)" : ""}</div>
           <div><span className="text-muted-foreground">Risultati grezzi:</span> {meta.rawCount}</div>
           <div><span className="text-muted-foreground">Risultati compatibili:</span> {results?.length ?? 0}</div>
-          {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore endpoint:</span> {meta.error}</div>}
+          {meta.attempts && meta.attempts.length > 0 && (
+            <div className="pt-1">
+              <div className="text-muted-foreground mb-0.5">Endpoint tentati:</div>
+              <ul className="space-y-0.5">
+                {meta.attempts.map((a, i) => (
+                  <li key={i} className={a.ok ? "text-emerald-700" : "text-destructive"}>
+                    {a.ok ? "✓" : "✗"} {a.host} {a.status != null ? `(${a.status})` : ""} — {a.message} · {a.durationMs}ms
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore finale:</span> {meta.error}</div>}
         </section>
       )}
 

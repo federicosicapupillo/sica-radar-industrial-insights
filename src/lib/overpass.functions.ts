@@ -25,6 +25,14 @@ export type OsmCandidatePayload = {
   compatibility: number;
 };
 
+export type OverpassAttempt = {
+  host: string;
+  ok: boolean;
+  status: number | null;
+  message: string;
+  durationMs: number;
+};
+
 export type OverpassResult = {
   ok: boolean;
   endpointUsed: string | null;
@@ -33,6 +41,7 @@ export type OverpassResult = {
   candidates: OsmCandidatePayload[];
   error: string | null;
   cached: boolean;
+  attempts: OverpassAttempt[];
 };
 
 function polygonAreaSqm(coords: Array<{ lat: number; lon: number }>): number {
@@ -112,13 +121,17 @@ export const searchOverpass = createServerFn({ method: "POST" })
 
     let lastErr: string | null = null;
     const started = Date.now();
+    const attempts: OverpassAttempt[] = [];
 
     for (const url of ENDPOINTS) {
       const host = new URL(url).host;
+      const epStart = Date.now();
       try {
         const res = await fetchWithTimeout(url, ql);
         if (!res.ok) {
-          lastErr = `Overpass ${res.status} su ${host}`;
+          const msg = `Overpass ${res.status} su ${host}`;
+          lastErr = msg;
+          attempts.push({ host, ok: false, status: res.status, message: msg, durationMs: Date.now() - epStart });
           continue;
         }
         const json: any = await res.json();
@@ -145,6 +158,7 @@ export const searchOverpass = createServerFn({ method: "POST" })
           });
         }
         cands.sort((a, b) => b.compatibility - a.compatibility);
+        attempts.push({ host, ok: true, status: 200, message: `${elems.length} elementi`, durationMs: Date.now() - epStart });
         const payload: OverpassResult = {
           ok: true,
           endpointUsed: host,
@@ -153,12 +167,14 @@ export const searchOverpass = createServerFn({ method: "POST" })
           candidates: cands.slice(0, 50),
           error: null,
           cached: false,
+          attempts,
         };
         cache.set(key, { at: now, payload });
         return payload;
       } catch (e: any) {
         const msg = e?.name === "AbortError" ? `timeout ${TIMEOUT_MS}ms su ${host}` : `${e?.message ?? "errore"} su ${host}`;
         lastErr = msg;
+        attempts.push({ host, ok: false, status: null, message: msg, durationMs: Date.now() - epStart });
       }
     }
 
@@ -169,8 +185,10 @@ export const searchOverpass = createServerFn({ method: "POST" })
       rawCount: 0,
       candidates: [],
       error:
-        lastErr ??
-        "Ricerca OSM non completata. Overpass non disponibile o troppo lento. Riprova riducendo raggio o cambiando zona.",
+        attempts.length > 0
+          ? "Overpass momentaneamente non disponibile o troppe richieste. Riprova tra qualche minuto oppure riduci raggio."
+          : lastErr ?? "Ricerca OSM non completata.",
       cached: false,
+      attempts,
     };
   });
