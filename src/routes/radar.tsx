@@ -376,6 +376,7 @@ function OsmView() {
           </div>
           {results.map((c) => {
             const status = compatStatusFromScore(c.compatibility);
+            const existingId = existingMap[c.id];
             return (
               <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -391,13 +392,19 @@ function OsmView() {
                       <span>lat {c.lat.toFixed(5)}, lon {c.lon.toFixed(5)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
                       {c.compatibility}% · {COMPAT_LABEL[status]}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
-                      Fonte OSM — da verificare
-                    </span>
+                    {existingId ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
+                        Già in CRM
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Fonte OSM — da verificare
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -431,19 +438,93 @@ function OsmView() {
                   >
                     OSM <ExternalLink className="w-3 h-3" />
                   </a>
-                  <button
-                    onClick={() => saveCandidate(c)}
-                    disabled={savingId === c.id}
-                    className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                  >
-                    {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                    Salva come opportunità
-                  </button>
+                  {existingId ? (
+                    <button
+                      onClick={() => openExisting(existingId)}
+                      className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Apri opportunità
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => saveCandidate(c)}
+                      disabled={savingId === c.id}
+                      className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      Salva come opportunità
+                    </button>
+                  )}
                 </div>
               </article>
             );
           })}
         </section>
+      )}
+
+      {/* Storico ricerche */}
+      {lastSearches.length > 0 && (
+        <section className="bg-card border rounded-lg overflow-hidden">
+          <header className="px-5 py-3 border-b flex items-center gap-2">
+            <Radar className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Ultime ricerche Radar</h2>
+          </header>
+          <div className="divide-y text-sm">
+            {lastSearches.map((s) => (
+              <div key={s.id} className="px-5 py-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <div className="text-xs text-muted-foreground w-32 shrink-0">
+                  {new Date(s.created_at).toLocaleString("it-IT")}
+                </div>
+                <div className="text-xs"><b>{Number(s.target_covered_sqm ?? 0).toLocaleString("it-IT")}</b> mq · {s.radius_km} km</div>
+                <div className="text-xs text-muted-foreground">{Number(s.latitude ?? 0).toFixed(4)}, {Number(s.longitude ?? 0).toFixed(4)}</div>
+                <div className="text-xs">
+                  {s.search_status === "ok"
+                    ? <span className="text-emerald-700">{s.compatible_results_count ?? 0} compatibili</span>
+                    : <span className="text-destructive">errore</span>}
+                </div>
+                <button
+                  onClick={() => repeatSearch(s)}
+                  className="ml-auto inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border bg-card hover:bg-accent"
+                >
+                  Ripeti ricerca
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Duplicate modal */}
+      {confirmDup && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmDup(null)}>
+          <div className="bg-card border rounded-lg p-5 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-base">Possibile duplicato</h3>
+            <p className="text-sm text-muted-foreground">
+              Questo candidato sembra già presente nelle opportunità (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).
+            </p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDup(null)}
+                className="px-3 py-1.5 text-xs rounded-md border hover:bg-accent"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => openExisting(confirmDup.opportunityId)}
+                className="px-3 py-1.5 text-xs rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> Apri opportunità esistente
+              </button>
+              <button
+                onClick={() => saveCandidate(confirmDup.c, true)}
+                disabled={savingId === confirmDup.c.id}
+                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                Salva comunque
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
