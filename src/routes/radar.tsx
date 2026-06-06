@@ -571,10 +571,23 @@ function OsmView() {
       {confirmDup && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmDup(null)}>
           <div className="bg-card border rounded-lg p-5 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-base">Possibile duplicato</h3>
+            <h3 className="font-semibold text-base">
+              {confirmDup.match.exact ? "Duplicato esatto" : "Possibile duplicato trovato"}
+            </h3>
             <p className="text-sm text-muted-foreground">
-              Questo candidato sembra già presente nelle opportunità (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).
+              {confirmDup.match.exact
+                ? <>Edificio già presente nel CRM (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).</>
+                : "Edificio molto simile già presente nel CRM (stessa fonte OSM, coordinate e mq vicini)."}
             </p>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-1">
+              <div><span className="text-muted-foreground">Opportunità esistente:</span> <b>{confirmDup.match.title}</b></div>
+              <div>
+                <span className="text-muted-foreground">Mq salvati:</span>{" "}
+                {confirmDup.match.savedSqm != null ? `${confirmDup.match.savedSqm.toLocaleString("it-IT")} mq` : "—"}
+                <span className="text-muted-foreground"> · candidato:</span> {confirmDup.c.areaSqm.toLocaleString("it-IT")} mq
+              </div>
+              <div><span className="text-muted-foreground">Distanza stimata:</span> ~{confirmDup.match.distanceM} m</div>
+            </div>
             <div className="flex flex-wrap gap-2 justify-end">
               <button
                 onClick={() => setConfirmDup(null)}
@@ -583,7 +596,7 @@ function OsmView() {
                 Annulla
               </button>
               <button
-                onClick={() => openExisting(confirmDup.opportunityId)}
+                onClick={() => openExisting(confirmDup.match.opportunityId)}
                 className="px-3 py-1.5 text-xs rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1"
               >
                 <ExternalLink className="w-3 h-3" /> Apri opportunità esistente
