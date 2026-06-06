@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink, Search, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,6 +131,9 @@ function OsmView() {
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
+  const [existingMap, setExistingMap] = useState<Record<string, string>>({}); // osm_id -> opportunity_id
+  const [lastSearches, setLastSearches] = useState<any[]>([]);
+  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; opportunityId: string } | null>(null);
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
@@ -138,10 +141,41 @@ function OsmView() {
   const minSqm = Math.max(0, Math.round(target * (1 - tol / 100)));
   const maxSqm = Math.round(target * (1 + tol / 100));
 
+  const refreshLastSearches = useCallback(async () => {
+    const { data } = await supabase
+      .from("radar_searches" as any)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (data) setLastSearches(data as any[]);
+  }, []);
+
+  useEffect(() => { refreshLastSearches(); }, [refreshLastSearches]);
+
+  async function refreshExisting(candidates: OsmCandidate[]) {
+    if (candidates.length === 0) {
+      setExistingMap({});
+      return;
+    }
+    const urls = candidates.map((c) => `https://www.openstreetmap.org/${c.id}`);
+    const { data } = await supabase
+      .from("opportunities")
+      .select("id, source_url")
+      .eq("source_type", "OpenStreetMap/Overpass")
+      .in("source_url", urls);
+    const map: Record<string, string> = {};
+    (data ?? []).forEach((row: any) => {
+      const m = /openstreetmap\.org\/(.+)$/.exec(row.source_url ?? "");
+      if (m) map[m[1]] = row.id;
+    });
+    setExistingMap(map);
+  }
+
   async function runSearch() {
     setError(null);
     setResults(null);
     setMeta(null);
+    setExistingMap({});
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
@@ -152,8 +186,10 @@ function OsmView() {
       return;
     }
     setLoading(true);
+    let res: OverpassResult | null = null;
+    let runtimeError: string | null = null;
     try {
-      const res = await runOverpass({
+      res = await runOverpass({
         data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol },
       });
       const { candidates, ...rest } = res;
@@ -161,20 +197,55 @@ function OsmView() {
       if (!res.ok) {
         setError(res.error ?? "Ricerca OSM non completata. Overpass non disponibile o troppo lento. Riprova riducendo raggio o cambiando zona.");
         setResults([]);
-        return;
+      } else {
+        setResults(candidates);
+        await refreshExisting(candidates);
+        if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
+        else toast.success(`${candidates.length} candidati trovati`);
       }
-      setResults(candidates);
-      if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
-      else toast.success(`${candidates.length} candidati trovati`);
     } catch (e: any) {
-      setError(e?.message ?? "Errore Overpass");
+      runtimeError = e?.message ?? "Errore Overpass";
+      setError(runtimeError);
     } finally {
       setLoading(false);
     }
+    // Log search to history
+    try {
+      await supabase.from("radar_searches" as any).insert({
+        latitude: la,
+        longitude: lo,
+        radius_km: rk,
+        target_covered_sqm: target,
+        tolerance_percent: tol,
+        min_covered_sqm: minSqm,
+        max_covered_sqm: maxSqm,
+        source_type: "OpenStreetMap/Overpass",
+        endpoint_used: res?.endpointUsed ?? null,
+        response_time_ms: res?.responseTimeMs ?? null,
+        raw_results_count: res?.rawCount ?? 0,
+        compatible_results_count: res?.candidates.length ?? 0,
+        search_status: res?.ok ? "ok" : "error",
+        error_message: runtimeError ?? res?.error ?? null,
+      });
+      refreshLastSearches();
+    } catch { /* non bloccare UI */ }
   }
 
+  function repeatSearch(s: any) {
+    setLat(String(s.latitude ?? ""));
+    setLon(String(s.longitude ?? ""));
+    setRadiusKm(String(s.radius_km ?? ""));
+    setTargetSqm(String(s.target_covered_sqm ?? ""));
+    setTolerancePct(String(s.tolerance_percent ?? ""));
+    toast.info("Parametri caricati. Clicca Avvia ricerca per rilanciare.");
+  }
 
-  async function saveCandidate(c: OsmCandidate) {
+  async function saveCandidate(c: OsmCandidate, force = false) {
+    const existingId = existingMap[c.id];
+    if (existingId && !force) {
+      setConfirmDup({ c, opportunityId: existingId });
+      return;
+    }
     setSavingId(c.id);
     try {
       const status = compatStatusFromScore(c.compatibility);
@@ -228,8 +299,14 @@ function OsmView() {
       toast.error(e?.message ?? "Errore salvataggio");
     } finally {
       setSavingId(null);
+      setConfirmDup(null);
     }
   }
+
+  function openExisting(opportunityId: string) {
+    navigate({ to: "/opportunita/$id", params: { id: opportunityId } });
+  }
+
 
   return (
     <>
@@ -299,6 +376,7 @@ function OsmView() {
           </div>
           {results.map((c) => {
             const status = compatStatusFromScore(c.compatibility);
+            const existingId = existingMap[c.id];
             return (
               <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -314,13 +392,19 @@ function OsmView() {
                       <span>lat {c.lat.toFixed(5)}, lon {c.lon.toFixed(5)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
                       {c.compatibility}% · {COMPAT_LABEL[status]}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
-                      Fonte OSM — da verificare
-                    </span>
+                    {existingId ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
+                        Già in CRM
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Fonte OSM — da verificare
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -354,19 +438,93 @@ function OsmView() {
                   >
                     OSM <ExternalLink className="w-3 h-3" />
                   </a>
-                  <button
-                    onClick={() => saveCandidate(c)}
-                    disabled={savingId === c.id}
-                    className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                  >
-                    {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                    Salva come opportunità
-                  </button>
+                  {existingId ? (
+                    <button
+                      onClick={() => openExisting(existingId)}
+                      className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Apri opportunità
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => saveCandidate(c)}
+                      disabled={savingId === c.id}
+                      className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      Salva come opportunità
+                    </button>
+                  )}
                 </div>
               </article>
             );
           })}
         </section>
+      )}
+
+      {/* Storico ricerche */}
+      {lastSearches.length > 0 && (
+        <section className="bg-card border rounded-lg overflow-hidden">
+          <header className="px-5 py-3 border-b flex items-center gap-2">
+            <Radar className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Ultime ricerche Radar</h2>
+          </header>
+          <div className="divide-y text-sm">
+            {lastSearches.map((s) => (
+              <div key={s.id} className="px-5 py-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <div className="text-xs text-muted-foreground w-32 shrink-0">
+                  {new Date(s.created_at).toLocaleString("it-IT")}
+                </div>
+                <div className="text-xs"><b>{Number(s.target_covered_sqm ?? 0).toLocaleString("it-IT")}</b> mq · {s.radius_km} km</div>
+                <div className="text-xs text-muted-foreground">{Number(s.latitude ?? 0).toFixed(4)}, {Number(s.longitude ?? 0).toFixed(4)}</div>
+                <div className="text-xs">
+                  {s.search_status === "ok"
+                    ? <span className="text-emerald-700">{s.compatible_results_count ?? 0} compatibili</span>
+                    : <span className="text-destructive">errore</span>}
+                </div>
+                <button
+                  onClick={() => repeatSearch(s)}
+                  className="ml-auto inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border bg-card hover:bg-accent"
+                >
+                  Ripeti ricerca
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Duplicate modal */}
+      {confirmDup && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmDup(null)}>
+          <div className="bg-card border rounded-lg p-5 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-base">Possibile duplicato</h3>
+            <p className="text-sm text-muted-foreground">
+              Questo candidato sembra già presente nelle opportunità (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).
+            </p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDup(null)}
+                className="px-3 py-1.5 text-xs rounded-md border hover:bg-accent"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => openExisting(confirmDup.opportunityId)}
+                className="px-3 py-1.5 text-xs rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> Apri opportunità esistente
+              </button>
+              <button
+                onClick={() => saveCandidate(confirmDup.c, true)}
+                disabled={savingId === confirmDup.c.id}
+                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                Salva comunque
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

@@ -618,6 +618,69 @@ export type Database = {
         }
         Relationships: []
       }
+      radar_searches: {
+        Row: {
+          compatible_results_count: number | null
+          created_at: string
+          endpoint_used: string | null
+          error_message: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          max_covered_sqm: number | null
+          min_covered_sqm: number | null
+          radius_km: number | null
+          raw_results_count: number | null
+          response_time_ms: number | null
+          search_name: string | null
+          search_status: string | null
+          source_type: string | null
+          target_covered_sqm: number | null
+          tolerance_percent: number | null
+          updated_at: string
+        }
+        Insert: {
+          compatible_results_count?: number | null
+          created_at?: string
+          endpoint_used?: string | null
+          error_message?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          max_covered_sqm?: number | null
+          min_covered_sqm?: number | null
+          radius_km?: number | null
+          raw_results_count?: number | null
+          response_time_ms?: number | null
+          search_name?: string | null
+          search_status?: string | null
+          source_type?: string | null
+          target_covered_sqm?: number | null
+          tolerance_percent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          compatible_results_count?: number | null
+          created_at?: string
+          endpoint_used?: string | null
+          error_message?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          max_covered_sqm?: number | null
+          min_covered_sqm?: number | null
+          radius_km?: number | null
+          raw_results_count?: number | null
+          response_time_ms?: number | null
+          search_name?: string | null
+          search_status?: string | null
+          source_type?: string | null
+          target_covered_sqm?: number | null
+          tolerance_percent?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
