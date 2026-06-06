@@ -277,6 +277,21 @@ function OsmView() {
         {error && <div className="text-sm text-destructive">{error}</div>}
       </section>
 
+      {meta && (
+        <section className="bg-card border rounded-lg p-4 text-xs space-y-1">
+          <div className="font-semibold text-sm mb-1 flex items-center gap-2">
+            <Info className="w-4 h-4 text-primary" /> Stato fonte dati
+          </div>
+          <div><span className="text-muted-foreground">Modalità:</span> OSM reale server-side</div>
+          <div><span className="text-muted-foreground">Endpoint usato:</span> {meta.endpointUsed ?? "—"}</div>
+          <div><span className="text-muted-foreground">Tempo risposta:</span> {meta.responseTimeMs} ms{meta.cached ? " (cache)" : ""}</div>
+          <div><span className="text-muted-foreground">Risultati grezzi:</span> {meta.rawCount}</div>
+          <div><span className="text-muted-foreground">Risultati compatibili:</span> {results?.length ?? 0}</div>
+          {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore endpoint:</span> {meta.error}</div>}
+        </section>
+      )}
+      </section>
+
       {/* Results */}
       {results && (
         <section className="space-y-3">
