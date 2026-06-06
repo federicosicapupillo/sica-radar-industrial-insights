@@ -465,9 +465,13 @@ function OsmView() {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
                       {c.compatibility}% · {COMPAT_LABEL[status]}
                     </span>
-                    {existingId ? (
+                    {match?.exact ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
                         Già in CRM
+                      </span>
+                    ) : match ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-orange-500/10 text-orange-700 border-orange-500/30">
+                        Possibile duplicato
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
