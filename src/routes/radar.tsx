@@ -445,7 +445,7 @@ function OsmView() {
           </div>
           {results.map((c) => {
             const status = compatStatusFromScore(c.compatibility);
-            const existingId = existingMap[c.id];
+            const match = matchMap[c.id];
             return (
               <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
