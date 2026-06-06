@@ -259,7 +259,9 @@ function OsmView() {
     setMatchMap(map);
   }
 
+  const lastRunRef = useRef<{ key: string; at: number } | null>(null);
   async function runSearch() {
+    if (loading) return;
     setError(null);
     setResults(null);
     setMeta(null);
@@ -273,6 +275,14 @@ function OsmView() {
       setError("Inserisci mq target > 0");
       return;
     }
+    const key = `${la.toFixed(5)}|${lo.toFixed(5)}|${rk}|${target}|${tol}`;
+    const now = Date.now();
+    if (lastRunRef.current && lastRunRef.current.key === key && now - lastRunRef.current.at < 10_000) {
+      const left = Math.ceil((10_000 - (now - lastRunRef.current.at)) / 1000);
+      setError(`Stessa ricerca già lanciata. Riprova tra ${left}s o cambia parametri.`);
+      return;
+    }
+    lastRunRef.current = { key, at: now };
     setLoading(true);
     let res: OverpassResult | null = null;
     let runtimeError: string | null = null;
