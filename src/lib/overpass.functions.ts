@@ -120,19 +120,20 @@ export const searchOverpass = createServerFn({ method: "POST" })
         radiusKm: z.number().min(0.1).max(50),
         targetSqm: z.number().min(1).max(1_000_000),
         tolerancePct: z.number().min(0).max(100),
+        mode: z.enum(["light", "extended"]).optional().default("light"),
       })
       .parse(d),
   )
   .handler(async ({ data }): Promise<OverpassResult> => {
-    const { lat, lon, radiusKm, targetSqm, tolerancePct } = data;
-    const key = `${lat.toFixed(5)}|${lon.toFixed(5)}|${radiusKm}|${targetSqm}|${tolerancePct}`;
+    const { lat, lon, radiusKm, targetSqm, tolerancePct, mode } = data;
+    const key = `${lat.toFixed(5)}|${lon.toFixed(5)}|${radiusKm}|${targetSqm}|${tolerancePct}|${mode}`;
     const now = Date.now();
     const cached = cache.get(key);
     if (cached && now - cached.at < CACHE_TTL_MS) {
       return { ...cached.payload, cached: true };
     }
 
-    const ql = buildQL(lat, lon, radiusKm);
+    const ql = buildQL(lat, lon, radiusKm, mode);
     const minSqm = Math.max(0, targetSqm * (1 - tolerancePct / 100));
     const maxSqm = targetSqm * (1 + tolerancePct / 100);
 
@@ -157,6 +158,8 @@ export const searchOverpass = createServerFn({ method: "POST" })
         for (const el of elems) {
           const geom = Array.isArray(el.geometry) ? el.geometry : null;
           if (!geom || geom.length < 3) continue;
+          const tags = el.tags ?? {};
+          if (mode === "light" && tags.building === "yes" && !hasIndustrialHint(tags)) continue;
           const area = polygonAreaSqm(geom);
           if (area < minSqm || area > maxSqm) continue;
           const c = centroid(geom);
@@ -164,8 +167,8 @@ export const searchOverpass = createServerFn({ method: "POST" })
           const score = Math.max(0, Math.round(100 - Math.min(100, Math.abs(diffPct) * 2)));
           cands.push({
             id: `${el.type}/${el.id}`,
-            name: el.tags?.name ?? null,
-            tags: el.tags ?? {},
+            name: tags.name ?? null,
+            tags,
             areaSqm: Math.round(area),
             lat: c.lat,
             lon: c.lon,
@@ -185,6 +188,7 @@ export const searchOverpass = createServerFn({ method: "POST" })
           error: null,
           cached: false,
           attempts,
+          mode,
         };
         cache.set(key, { at: now, payload });
         return payload;
@@ -203,9 +207,10 @@ export const searchOverpass = createServerFn({ method: "POST" })
       candidates: [],
       error:
         attempts.length > 0
-          ? "Overpass momentaneamente non disponibile o troppe richieste. Riprova tra qualche minuto oppure riduci raggio."
+          ? `Overpass non disponibile (${mode === "extended" ? "modalità estesa" : "modalità leggera"}). Riduci raggio a 2 km${mode === "extended" ? " o passa a Ricerca leggera" : ""} o riprova tra qualche minuto.`
           : lastErr ?? "Ricerca OSM non completata.",
       cached: false,
       attempts,
+      mode,
     };
   });
