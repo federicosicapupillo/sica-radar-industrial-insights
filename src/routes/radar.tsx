@@ -1,169 +1,469 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink } from "lucide-react";
+import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink, Search, Loader2, Save } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { compatStatusFromScore, COMPAT_LABEL, COMPAT_CLS } from "@/lib/compatibility";
 
 export const Route = createFileRoute("/radar")({
   component: RadarPage,
   head: () => ({
     meta: [
       { title: "Radar ricerca capannoni · Sica Industrial Radar" },
-      { name: "description", content: "Stato fonte dati del Radar e flusso operativo di ricerca capannoni." },
+      { name: "description", content: "Ricerca capannoni industriali via OpenStreetMap/Overpass." },
     ],
   }),
 });
 
-// Stato attuale: nessuna API di ricerca reale collegata.
-// La ricerca avviene oggi manualmente (Google Maps/Earth + Misuratore + inserimento opportunità).
-const DATA_SOURCE = {
-  currentSource: "Inserimento manuale + Misuratore (KML/KMZ, GeoJSON)",
-  isReal: false, // i risultati di "ricerca automatica" non esistono ancora
-  apiConfigured: false,
-  provider: "Overpass API / OpenStreetMap (previsto, non attivo)",
-  missing: [
-    "Endpoint Overpass configurato (server function dedicata)",
-    "Mapping tag OSM → categoria capannone (building=industrial, landuse=industrial, man_made=warehouse)",
-    "Filtri geografici (bounding box per provincia/comune)",
-    "Deduplica vs opportunità esistenti su latitudine/longitudine",
-    "Rate limiting e cache risultati Overpass",
-  ],
-} as const;
+type Mode = "demo" | "osm";
+
+type OsmCandidate = {
+  id: string;
+  name: string | null;
+  tags: Record<string, string>;
+  areaSqm: number;
+  lat: number;
+  lon: number;
+  geometry: Array<{ lat: number; lon: number }>;
+  diffPct: number;
+  compatibility: number;
+};
+
+// ----------------- Overpass helpers -----------------
+
+// Spherical Mercator-ish planar area for small polygons (sufficient for capannoni < 100k mq).
+function polygonAreaSqm(coords: Array<{ lat: number; lon: number }>): number {
+  if (coords.length < 3) return 0;
+  const R = 6378137;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  // Use shoelace on equirectangular projection at the polygon's mean latitude.
+  const lat0 = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
+  const cosLat0 = Math.cos(toRad(lat0));
+  const pts = coords.map((c) => ({
+    x: toRad(c.lon) * R * cosLat0,
+    y: toRad(c.lat) * R,
+  }));
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function centroid(coords: Array<{ lat: number; lon: number }>) {
+  const lat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
+  const lon = coords.reduce((s, c) => s + c.lon, 0) / coords.length;
+  return { lat, lon };
+}
+
+function buildOverpassQL(lat: number, lon: number, radiusKm: number): string {
+  const r = Math.max(50, Math.round(radiusKm * 1000));
+  return `[out:json][timeout:50];
+(
+  way["building"="industrial"](around:${r},${lat},${lon});
+  way["building"="warehouse"](around:${r},${lat},${lon});
+  way["building"="commercial"](around:${r},${lat},${lon});
+  way["landuse"="industrial"](around:${r},${lat},${lon});
+  way["industrial"](around:${r},${lat},${lon});
+);
+out tags geom;`;
+}
+
+async function queryOverpass(ql: string): Promise<any> {
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+  ];
+  let lastErr: unknown;
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(ql),
+      });
+      if (!res.ok) throw new Error(`Overpass ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("Overpass non raggiungibile");
+}
+
+// ----------------- Component -----------------
 
 function RadarPage() {
+  const [mode, setMode] = useState<Mode>("demo");
+
   return (
     <>
       <PageHeader
         title="Radar ricerca capannoni"
-        subtitle="Stato fonte dati e flusso operativo di scouting."
+        subtitle="Modalità Demo o ricerca reale OpenStreetMap/Overpass."
         actions={
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-700 border border-amber-500/30">
-            <AlertTriangle className="w-3.5 h-3.5" /> Dati demo
-          </span>
+          <div className="inline-flex rounded-md border bg-card overflow-hidden text-xs">
+            <button
+              onClick={() => setMode("demo")}
+              className={`px-3 py-1.5 ${mode === "demo" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+            >
+              Demo
+            </button>
+            <button
+              onClick={() => setMode("osm")}
+              className={`px-3 py-1.5 border-l ${mode === "osm" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+            >
+              Ricerca reale OSM
+            </button>
+          </div>
         }
       />
 
       <div className="p-4 md:p-8 space-y-6">
-        {/* Banner demo */}
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <div className="font-semibold text-foreground">Modalità dimostrativa</div>
-            <p className="text-muted-foreground mt-1">
-              Il Radar non esegue ancora una ricerca automatica di capannoni. Tutti i dati
-              dell'app provengono da inserimento manuale e dal <Link to="/misuratore" className="text-primary hover:underline">Misuratore</Link>.
-              Nessuno scraping di Google Maps / Google Earth / portali immobiliari è attivo, in
-              linea con le regole del progetto.
-            </p>
-          </div>
-        </div>
-
-        {/* Stato fonte dati */}
-        <section className="bg-card border rounded-lg overflow-hidden">
-          <header className="px-5 py-4 border-b flex items-center gap-2">
-            <Radar className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold">Stato fonte dati</h2>
-          </header>
-          <div className="divide-y">
-            <Row label="Fonte attuale" value={DATA_SOURCE.currentSource} />
-            <Row
-              label="Dati reali"
-              value={
-                DATA_SOURCE.isReal ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Sì</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-amber-600"><XCircle className="w-4 h-4" /> No — flusso manuale</span>
-                )
-              }
-            />
-            <Row
-              label="API configurata"
-              value={
-                DATA_SOURCE.apiConfigured ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Sì</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-destructive"><XCircle className="w-4 h-4" /> No</span>
-                )
-              }
-            />
-            <Row label="Provider previsto" value={DATA_SOURCE.provider} />
-          </div>
-        </section>
-
-        {/* Cosa manca */}
-        <section className="bg-card border rounded-lg overflow-hidden">
-          <header className="px-5 py-4 border-b flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold">Cosa manca per attivare la ricerca reale</h2>
-          </header>
-          <ul className="px-5 py-4 space-y-2 text-sm">
-            {DATA_SOURCE.missing.map((m) => (
-              <li key={m} className="flex items-start gap-2">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">{m}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="px-5 pb-4 text-xs text-muted-foreground">
-            L'integrazione Overpass/OSM è prevista come server function (no chiavi lato client,
-            no scraping). I risultati verranno mostrati qui con badge fonte e mai promossi
-            automaticamente a "Già in vendita".
-          </div>
-        </section>
-
-        {/* Flusso attuale */}
-        <section className="bg-card border rounded-lg overflow-hidden">
-          <header className="px-5 py-4 border-b">
-            <h2 className="font-semibold">Flusso operativo attuale</h2>
-          </header>
-          <ol className="px-5 py-4 space-y-3 text-sm list-decimal list-inside">
-            <li>
-              Apri <Link to="/misuratore" className="text-primary hover:underline">Misuratore</Link> e inserisci i parametri di ricerca.
-            </li>
-            <li>
-              Misura il capannone su Google Maps/Earth (manuale) o carica un file KML/KMZ/GeoJSON.
-            </li>
-            <li>Assegna i poligoni a edificio coperto / piazzale / altro.</li>
-            <li>Salva come opportunità: la compatibilità viene calcolata automaticamente.</li>
-            <li>
-              Dalla scheda <Link to="/opportunita" className="text-primary hover:underline">Opportunità</Link> identifica l'azienda occupante e registra le chiamate.
-            </li>
-          </ol>
-        </section>
-
-        {/* Link utili (manuali) */}
-        <section className="bg-muted/30 border border-dashed rounded-lg p-4 text-sm">
-          <div className="font-medium text-foreground mb-1">Strumenti esterni (apertura manuale)</div>
-          <div className="text-muted-foreground mb-3">
-            Nessuna chiamata automatica. Le risorse seguenti vanno aperte e usate manualmente dall'operatore.
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="https://www.google.com/maps"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
-            >
-              Google Maps <ExternalLink className="w-3 h-3" />
-            </a>
-            <a
-              href="https://earth.google.com/web/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
-            >
-              Google Earth <ExternalLink className="w-3 h-3" />
-            </a>
-            <a
-              href="https://overpass-turbo.eu/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
-            >
-              Overpass Turbo (OSM) <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        </section>
+        {mode === "demo" ? <DemoView /> : <OsmView />}
       </div>
     </>
+  );
+}
+
+// ----------------- Demo view (existing) -----------------
+
+const DATA_SOURCE = {
+  currentSource: "Inserimento manuale + Misuratore (KML/KMZ, GeoJSON)",
+  isReal: false,
+  apiConfigured: false,
+  provider: "Overpass API / OpenStreetMap (disponibile nella scheda Ricerca reale OSM)",
+  missing: [
+    "Mapping tag OSM → categoria capannone già attivo (industrial/warehouse/commercial/landuse)",
+    "Deduplica vs opportunità esistenti su lat/lon (da rifinire)",
+    "Cache risultati Overpass lato server (oggi chiamata diretta dal browser)",
+    "Filtri per provincia/comune (oggi solo raggio in km)",
+  ],
+} as const;
+
+function DemoView() {
+  return (
+    <>
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <div className="font-semibold text-foreground">Modalità dimostrativa</div>
+          <p className="text-muted-foreground mt-1">
+            Nessuna ricerca automatica. I dati arrivano da inserimento manuale e dal{" "}
+            <Link to="/misuratore" className="text-primary hover:underline">Misuratore</Link>.
+            Per cercare candidati reali passa a <b>Ricerca reale OSM</b>.
+          </p>
+        </div>
+      </div>
+
+      <section className="bg-card border rounded-lg overflow-hidden">
+        <header className="px-5 py-4 border-b flex items-center gap-2">
+          <Radar className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold">Stato fonte dati</h2>
+        </header>
+        <div className="divide-y">
+          <Row label="Fonte attuale" value={DATA_SOURCE.currentSource} />
+          <Row label="Dati reali" value={<span className="inline-flex items-center gap-1 text-amber-600"><XCircle className="w-4 h-4" /> No — flusso manuale</span>} />
+          <Row label="API configurata" value={<span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Sì (Overpass pubblica)</span>} />
+          <Row label="Provider" value={DATA_SOURCE.provider} />
+        </div>
+      </section>
+
+      <section className="bg-card border rounded-lg overflow-hidden">
+        <header className="px-5 py-4 border-b flex items-center gap-2">
+          <Info className="w-5 h-5 text-primary" /><h2 className="font-semibold">Limiti attuali</h2>
+        </header>
+        <ul className="px-5 py-4 space-y-2 text-sm">
+          {DATA_SOURCE.missing.map((m) => (
+            <li key={m} className="flex items-start gap-2">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-muted-foreground shrink-0" />
+              <span className="text-muted-foreground">{m}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
+}
+
+// ----------------- OSM view -----------------
+
+function OsmView() {
+  const navigate = useNavigate();
+  const [lat, setLat] = useState("45.4642");
+  const [lon, setLon] = useState("9.1900");
+  const [radiusKm, setRadiusKm] = useState("3");
+  const [targetSqm, setTargetSqm] = useState("4000");
+  const [tolerancePct, setTolerancePct] = useState("30");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<OsmCandidate[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const target = Number(targetSqm) || 0;
+  const tol = Number(tolerancePct) || 0;
+  const minSqm = Math.max(0, Math.round(target * (1 - tol / 100)));
+  const maxSqm = Math.round(target * (1 + tol / 100));
+
+  async function runSearch() {
+    setError(null);
+    setResults(null);
+    const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
+    if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
+      setError("Inserisci lat/lon validi e raggio > 0");
+      return;
+    }
+    if (target <= 0) {
+      setError("Inserisci mq target > 0");
+      return;
+    }
+    setLoading(true);
+    try {
+      const ql = buildOverpassQL(la, lo, rk);
+      const data = await queryOverpass(ql);
+      const elems: any[] = Array.isArray(data?.elements) ? data.elements : [];
+      const cands: OsmCandidate[] = [];
+      for (const el of elems) {
+        const geom = Array.isArray(el.geometry) ? el.geometry : null;
+        if (!geom || geom.length < 3) continue;
+        const area = polygonAreaSqm(geom);
+        if (area < minSqm || area > maxSqm) continue;
+        const c = centroid(geom);
+        const diffPct = ((area - target) / target) * 100;
+        const score = Math.max(0, Math.round(100 - Math.min(100, Math.abs(diffPct) * 2)));
+        cands.push({
+          id: `${el.type}/${el.id}`,
+          name: el.tags?.name ?? null,
+          tags: el.tags ?? {},
+          areaSqm: Math.round(area),
+          lat: c.lat,
+          lon: c.lon,
+          geometry: geom,
+          diffPct,
+          compatibility: score,
+        });
+      }
+      cands.sort((a, b) => b.compatibility - a.compatibility);
+      setResults(cands.slice(0, 50));
+      if (cands.length === 0) toast.info("Nessun candidato OSM nel range mq.");
+      else toast.success(`${cands.length} candidati trovati`);
+    } catch (e: any) {
+      setError(e?.message ?? "Errore Overpass");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveCandidate(c: OsmCandidate) {
+    setSavingId(c.id);
+    try {
+      const status = compatStatusFromScore(c.compatibility);
+      const priority = c.compatibility >= 80 ? "alta" : c.compatibility >= 50 ? "media" : "bassa";
+      const tagSummary = c.tags.building
+        ? `building=${c.tags.building}`
+        : c.tags.landuse
+          ? `landuse=${c.tags.landuse}`
+          : "industrial";
+      const title = c.name ?? `Candidato OSM ${tagSummary} (${c.areaSqm.toLocaleString("it-IT")} mq)`;
+      const geojson = {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [[...c.geometry.map((p) => [p.lon, p.lat]), [c.geometry[0].lon, c.geometry[0].lat]]],
+        },
+        properties: { osm_id: c.id, tags: c.tags, source: "OpenStreetMap/Overpass" },
+      };
+      const { data, error } = await supabase
+        .from("opportunities")
+        .insert({
+          title,
+          city: "Da verificare",
+          province: "Da verificare",
+          opportunity_status: "da_verificare",
+          priority,
+          latitude: c.lat,
+          longitude: c.lon,
+          covered_sqm: c.areaSqm,
+          measured_covered_sqm: c.areaSqm,
+          target_covered_sqm: target,
+          compatibility_score: c.compatibility,
+          compatibility_status: status,
+          geojson_data: geojson as any,
+          geometry_data: geojson as any,
+          measurement_source: "osm_overpass",
+          measurement_confidence: "media",
+          source_type: "OpenStreetMap/Overpass",
+          source_url: `https://www.openstreetmap.org/${c.id}`,
+          google_maps_url: `https://www.google.com/maps?q=${c.lat},${c.lon}`,
+          google_earth_url: `https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`,
+          suggested_next_action: "Verificare occupante, altezza, accesso bilici e proprietà",
+          last_measured_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      toast.success("Candidato salvato come opportunità");
+      navigate({ to: "/opportunita/$id", params: { id: data.id } });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Errore salvataggio");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <>
+      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 flex gap-3">
+        <Radar className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <div className="font-semibold text-foreground">Ricerca reale OpenStreetMap / Overpass</div>
+          <p className="text-muted-foreground mt-1">
+            I risultati sono <b>candidati tecnici da verificare</b>. Nessuno scraping, nessuna info su proprietario o
+            telefono, mai dichiarati “già in vendita”.
+          </p>
+        </div>
+      </div>
+
+      {/* Form */}
+      <section className="bg-card border rounded-lg p-5 space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Field label="Latitudine" value={lat} onChange={setLat} placeholder="45.4642" />
+          <Field label="Longitudine" value={lon} onChange={setLon} placeholder="9.1900" />
+          <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="3" type="number" />
+          <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
+          <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runSearch}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Avvia ricerca reale OSM
+          </button>
+          <a
+            href={`https://www.google.com/maps?q=${lat},${lon}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border bg-card hover:bg-accent"
+          >
+            Apri centro su Maps <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        {error && <div className="text-sm text-destructive">{error}</div>}
+      </section>
+
+      {/* Results */}
+      {results && (
+        <section className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            {results.length} candidati nel range mq • fonte OpenStreetMap/Overpass
+          </div>
+          {results.map((c) => {
+            const status = compatStatusFromScore(c.compatibility);
+            return (
+              <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">
+                      {c.name ?? <span className="text-muted-foreground italic">Senza nome</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
+                      <span>OSM {c.id}</span>
+                      {c.tags.building && <span>building={c.tags.building}</span>}
+                      {c.tags.landuse && <span>landuse={c.tags.landuse}</span>}
+                      {c.tags.industrial && <span>industrial={c.tags.industrial}</span>}
+                      <span>lat {c.lat.toFixed(5)}, lon {c.lon.toFixed(5)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
+                      {c.compatibility}% · {COMPAT_LABEL[status]}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
+                      Fonte OSM — da verificare
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <Stat label="Area stimata" value={`${c.areaSqm.toLocaleString("it-IT")} mq`} />
+                  <Stat label="Differenza target" value={`${c.diffPct >= 0 ? "+" : ""}${c.diffPct.toFixed(0)}%`} />
+                  <Stat label="Confidence" value="media" />
+                  <Stat label="Fonte" value="OpenStreetMap" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.google.com/maps?q=${c.lat},${c.lon}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Google Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={`https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Google Earth <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={`https://www.openstreetmap.org/${c.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    OSM <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <button
+                    onClick={() => saveCandidate(c)}
+                    disabled={savingId === c.id}
+                    className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                  >
+                    {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    Salva come opportunità
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
+    </>
+  );
+}
+
+function Field({
+  label, value, onChange, placeholder, type = "text",
+}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-muted-foreground mb-1">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
+    </label>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-muted/30 rounded-md px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="font-medium text-foreground">{value}</div>
+    </div>
   );
 }
 
