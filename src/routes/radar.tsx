@@ -141,6 +141,25 @@ function OsmView() {
   const [matchMap, setMatchMap] = useState<Record<string, MatchInfo>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
+  type OccupantDraft = {
+    company: string;
+    sign: string;
+    phone: string;
+    email: string;
+    website: string;
+    source: string;
+    confidence: string;
+    notes: string;
+    open: boolean;
+  };
+  const emptyDraft: OccupantDraft = {
+    company: "", sign: "", phone: "", email: "", website: "",
+    source: "", confidence: "", notes: "", open: false,
+  };
+  const [occupantDrafts, setOccupantDrafts] = useState<Record<string, OccupantDraft>>({});
+  const getDraft = (id: string) => occupantDrafts[id] ?? emptyDraft;
+  const patchDraft = (id: string, p: Partial<OccupantDraft>) =>
+    setOccupantDrafts((m) => ({ ...m, [id]: { ...(m[id] ?? emptyDraft), ...p } }));
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
@@ -315,6 +334,7 @@ function OsmView() {
       setConfirmDup({ c, match });
       return;
     }
+    const d = getDraft(c.id);
     setSavingId(c.id);
     try {
       const status = compatStatusFromScore(c.compatibility);
@@ -358,6 +378,17 @@ function OsmView() {
           google_earth_url: `https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`,
           suggested_next_action: "Verificare occupante, altezza, accesso bilici e proprietà",
           last_measured_at: new Date().toISOString(),
+          // Occupant draft (optional)
+          occupant_company_name: d.company.trim() || null,
+          occupant_sign_name: d.sign.trim() || null,
+          occupant_phone: d.phone.trim() || null,
+          occupant_email: d.email.trim() || null,
+          occupant_website: d.website.trim() || null,
+          occupant_contact_source: d.source.trim() || null,
+          occupant_contact_confidence: d.confidence.trim() || null,
+          occupant_contact_notes: d.notes.trim() || null,
+          occupant_contact_status: (d.company.trim() || d.phone.trim()) ? "da_chiamare" : null,
+          commercial_notes: d.notes.trim() || null,
         })
         .select("id")
         .single();
@@ -374,6 +405,13 @@ function OsmView() {
 
   function openExisting(opportunityId: string) {
     navigate({ to: "/opportunita/$id", params: { id: opportunityId } });
+  }
+
+  async function copyCoords(la: number, lo: number) {
+    try {
+      await navigator.clipboard.writeText(`${la}, ${lo}`);
+      toast.success("Coordinate copiate");
+    } catch { toast.error("Impossibile copiare"); }
   }
 
 
@@ -488,12 +526,28 @@ function OsmView() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Cerca su Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(`capannone ${c.lat.toFixed(5)},${c.lon.toFixed(5)} azienda`)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Cerca su Google <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
                     href={`https://www.google.com/maps?q=${c.lat},${c.lon}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                   >
-                    Google Maps <ExternalLink className="w-3 h-3" />
+                    Apri Maps <ExternalLink className="w-3 h-3" />
                   </a>
                   <a
                     href={`https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`}
@@ -501,8 +555,15 @@ function OsmView() {
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                   >
-                    Google Earth <ExternalLink className="w-3 h-3" />
+                    Apri Earth <ExternalLink className="w-3 h-3" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => copyCoords(c.lat, c.lon)}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    Copia coordinate
+                  </button>
                   <a
                     href={`https://www.openstreetmap.org/${c.id}`}
                     target="_blank"
@@ -511,6 +572,59 @@ function OsmView() {
                   >
                     OSM <ExternalLink className="w-3 h-3" />
                   </a>
+                </div>
+
+                {/* Occupant draft panel */}
+                {!match?.exact && (() => {
+                  const d = getDraft(c.id);
+                  return (
+                    <div className="border rounded-md bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={() => patchDraft(c.id, { open: !d.open })}
+                        className="w-full px-3 py-2 flex items-center justify-between text-xs font-medium hover:bg-accent/40"
+                      >
+                        <span>
+                          Azienda occupante / primo contatto
+                          {(d.company || d.phone) && (
+                            <span className="ml-2 text-primary">
+                              · {d.company || d.phone}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground">{d.open ? "−" : "+"}</span>
+                      </button>
+                      {d.open && (
+                        <div className="p-3 border-t space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <Field label="Nome azienda occupante" value={d.company} onChange={(v) => patchDraft(c.id, { company: v })} placeholder="Es. Rossi Logistics srl" />
+                            <Field label="Insegna visibile" value={d.sign} onChange={(v) => patchDraft(c.id, { sign: v })} placeholder="Insegna sul capannone" />
+                            <Field label="Telefono" value={d.phone} onChange={(v) => patchDraft(c.id, { phone: v })} placeholder="+39 ..." />
+                            <Field label="Email" value={d.email} onChange={(v) => patchDraft(c.id, { email: v })} placeholder="info@..." />
+                            <Field label="Sito web" value={d.website} onChange={(v) => patchDraft(c.id, { website: v })} placeholder="https://..." />
+                            <Field label="Fonte contatto" value={d.source} onChange={(v) => patchDraft(c.id, { source: v })} placeholder="Es. insegna, Google, passaggio" />
+                            <Field label="Attendibilità contatto" value={d.confidence} onChange={(v) => patchDraft(c.id, { confidence: v })} placeholder="alta / media / bassa" />
+                          </div>
+                          <label className="block">
+                            <span className="block text-xs font-medium text-muted-foreground mb-1">Note occupante</span>
+                            <textarea
+                              value={d.notes}
+                              onChange={(e) => patchDraft(c.id, { notes: e.target.value })}
+                              rows={2}
+                              className="w-full px-3 py-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              placeholder="Es. cancello con logo X, camion bilici visti"
+                            />
+                          </label>
+                          <p className="text-[11px] text-muted-foreground">
+                            Solo dati osservati o dichiarati. Non confondere occupante con proprietario.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-wrap gap-2 pt-1">
                   {match?.exact ? (
                     <button
                       onClick={() => openExisting(match.opportunityId)}
