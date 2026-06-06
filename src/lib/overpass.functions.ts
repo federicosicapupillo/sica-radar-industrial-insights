@@ -33,6 +33,8 @@ export type OverpassAttempt = {
   durationMs: number;
 };
 
+export type SearchMode = "light" | "extended";
+
 export type OverpassResult = {
   ok: boolean;
   endpointUsed: string | null;
@@ -42,6 +44,7 @@ export type OverpassResult = {
   error: string | null;
   cached: boolean;
   attempts: OverpassAttempt[];
+  mode: SearchMode;
 };
 
 function polygonAreaSqm(coords: Array<{ lat: number; lon: number }>): number {
@@ -66,18 +69,32 @@ function centroid(coords: Array<{ lat: number; lon: number }>) {
   return { lat, lon };
 }
 
-function buildQL(lat: number, lon: number, radiusKm: number): string {
+const INDUSTRIAL_HINT_KEYS = ["industrial", "man_made", "landuse", "craft", "logistics"];
+function hasIndustrialHint(tags: Record<string, string>): boolean {
+  if (!tags) return false;
+  for (const k of INDUSTRIAL_HINT_KEYS) if (tags[k]) return true;
+  return false;
+}
+
+function buildQL(lat: number, lon: number, radiusKm: number, mode: SearchMode): string {
   const r = Math.max(50, Math.round(radiusKm * 1000));
-  return `[out:json][timeout:20];
-(
+  const light = `
   way["building"="industrial"](around:${r},${lat},${lon});
   way["building"="warehouse"](around:${r},${lat},${lon});
   way["building"="commercial"](around:${r},${lat},${lon});
+  way["building"="retail"](around:${r},${lat},${lon});
+  way["building"="manufacture"](around:${r},${lat},${lon});
+  way["building"="yes"]["industrial"](around:${r},${lat},${lon});
+  way["building"="yes"]["landuse"="industrial"](around:${r},${lat},${lon});`;
+  const extended = `
   way["landuse"="industrial"](around:${r},${lat},${lon});
-  way["industrial"](around:${r},${lat},${lon});
+  way["industrial"](around:${r},${lat},${lon});`;
+  return `[out:json][timeout:20];
+(${light}${mode === "extended" ? extended : ""}
 );
 out tags geom;`;
 }
+
 
 async function fetchWithTimeout(url: string, body: string): Promise<Response> {
   const ctrl = new AbortController();
