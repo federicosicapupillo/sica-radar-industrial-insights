@@ -130,6 +130,8 @@ function OsmView() {
   const [results, setResults] = useState<OsmCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
+  const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
   const tol = Number(tolerancePct) || 0;
@@ -139,6 +141,7 @@ function OsmView() {
   async function runSearch() {
     setError(null);
     setResults(null);
+    setMeta(null);
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
@@ -150,40 +153,26 @@ function OsmView() {
     }
     setLoading(true);
     try {
-      const ql = buildOverpassQL(la, lo, rk);
-      const data = await queryOverpass(ql);
-      const elems: any[] = Array.isArray(data?.elements) ? data.elements : [];
-      const cands: OsmCandidate[] = [];
-      for (const el of elems) {
-        const geom = Array.isArray(el.geometry) ? el.geometry : null;
-        if (!geom || geom.length < 3) continue;
-        const area = polygonAreaSqm(geom);
-        if (area < minSqm || area > maxSqm) continue;
-        const c = centroid(geom);
-        const diffPct = ((area - target) / target) * 100;
-        const score = Math.max(0, Math.round(100 - Math.min(100, Math.abs(diffPct) * 2)));
-        cands.push({
-          id: `${el.type}/${el.id}`,
-          name: el.tags?.name ?? null,
-          tags: el.tags ?? {},
-          areaSqm: Math.round(area),
-          lat: c.lat,
-          lon: c.lon,
-          geometry: geom,
-          diffPct,
-          compatibility: score,
-        });
+      const res = await runOverpass({
+        data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol },
+      });
+      const { candidates, ...rest } = res;
+      setMeta(rest);
+      if (!res.ok) {
+        setError(res.error ?? "Ricerca OSM non completata. Overpass non disponibile o troppo lento. Riprova riducendo raggio o cambiando zona.");
+        setResults([]);
+        return;
       }
-      cands.sort((a, b) => b.compatibility - a.compatibility);
-      setResults(cands.slice(0, 50));
-      if (cands.length === 0) toast.info("Nessun candidato OSM nel range mq.");
-      else toast.success(`${cands.length} candidati trovati`);
+      setResults(candidates);
+      if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
+      else toast.success(`${candidates.length} candidati trovati`);
     } catch (e: any) {
       setError(e?.message ?? "Errore Overpass");
     } finally {
       setLoading(false);
     }
   }
+
 
   async function saveCandidate(c: OsmCandidate) {
     setSavingId(c.id);
