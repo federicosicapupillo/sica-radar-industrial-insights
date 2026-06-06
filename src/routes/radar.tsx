@@ -706,9 +706,9 @@ function OsmView() {
           <div className="font-semibold text-sm mb-1 flex items-center gap-2">
             <Info className="w-4 h-4 text-primary" /> Stato fonte dati
           </div>
-          <div><span className="text-muted-foreground">Modalità:</span> OSM reale server-side</div>
+          <div><span className="text-muted-foreground">Modalità:</span> OSM reale server-side — <b>{meta.mode === "extended" ? "Ricerca estesa industriale" : "Ricerca leggera edificio"}</b></div>
           <div><span className="text-muted-foreground">Endpoint usato:</span> {meta.endpointUsed ?? "—"}</div>
-          <div><span className="text-muted-foreground">Tempo risposta:</span> {meta.responseTimeMs} ms{meta.cached ? " (cache)" : ""}</div>
+          <div><span className="text-muted-foreground">Tempo risposta:</span> {meta.responseTimeMs} ms{meta.cached ? " (da cache)" : ""}</div>
           <div><span className="text-muted-foreground">Risultati grezzi:</span> {meta.rawCount}</div>
           <div><span className="text-muted-foreground">Risultati compatibili:</span> {results?.length ?? 0}</div>
           {meta.attempts && meta.attempts.length > 0 && (
@@ -724,6 +724,11 @@ function OsmView() {
             </div>
           )}
           {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore finale:</span> {meta.error}</div>}
+          {!meta.ok && (
+            <div className="pt-1 text-muted-foreground">
+              Consiglio: riduci raggio a 2 km{meta.mode === "extended" ? ", passa a Ricerca leggera edificio" : ""} o riprova tra qualche minuto.
+            </div>
+          )}
         </section>
       )}
 
