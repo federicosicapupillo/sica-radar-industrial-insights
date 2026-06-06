@@ -310,9 +310,9 @@ function OsmView() {
   }
 
   async function saveCandidate(c: OsmCandidate, force = false) {
-    const existingId = existingMap[c.id];
-    if (existingId && !force) {
-      setConfirmDup({ c, opportunityId: existingId });
+    const match = matchMap[c.id];
+    if (match && !force) {
+      setConfirmDup({ c, match });
       return;
     }
     setSavingId(c.id);
