@@ -131,9 +131,16 @@ function OsmView() {
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
-  const [existingMap, setExistingMap] = useState<Record<string, string>>({}); // osm_id -> opportunity_id
+  type MatchInfo = {
+    opportunityId: string;
+    title: string;
+    savedSqm: number | null;
+    distanceM: number;
+    exact: boolean;
+  };
+  const [matchMap, setMatchMap] = useState<Record<string, MatchInfo>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
-  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; opportunityId: string } | null>(null);
+  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
@@ -152,30 +159,92 @@ function OsmView() {
 
   useEffect(() => { refreshLastSearches(); }, [refreshLastSearches]);
 
-  async function refreshExisting(candidates: OsmCandidate[]) {
+  function haversineM(aLat: number, aLon: number, bLat: number, bLon: number) {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLon = toRad(bLon - aLon);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+
+  async function refreshExisting(candidates: OsmCandidate[], centerLat: number, centerLon: number, radiusKm: number) {
     if (candidates.length === 0) {
-      setExistingMap({});
+      setMatchMap({});
       return;
     }
     const urls = candidates.map((c) => `https://www.openstreetmap.org/${c.id}`);
-    const { data } = await supabase
+    const { data: exactRows } = await supabase
       .from("opportunities")
-      .select("id, source_url")
+      .select("id, title, source_url, latitude, longitude, covered_sqm")
       .eq("source_type", "OpenStreetMap/Overpass")
       .in("source_url", urls);
-    const map: Record<string, string> = {};
-    (data ?? []).forEach((row: any) => {
+    const exactByOsm: Record<string, any> = {};
+    (exactRows ?? []).forEach((row: any) => {
       const m = /openstreetmap\.org\/(.+)$/.exec(row.source_url ?? "");
-      if (m) map[m[1]] = row.id;
+      if (m) exactByOsm[m[1]] = row;
     });
-    setExistingMap(map);
+
+    const bufKm = radiusKm + 0.2;
+    const dLat = bufKm / 111;
+    const dLon = bufKm / (111 * Math.cos((centerLat * Math.PI) / 180) || 1);
+    const { data: nearbyRows } = await supabase
+      .from("opportunities")
+      .select("id, title, latitude, longitude, covered_sqm")
+      .eq("source_type", "OpenStreetMap/Overpass")
+      .gte("latitude", centerLat - dLat)
+      .lte("latitude", centerLat + dLat)
+      .gte("longitude", centerLon - dLon)
+      .lte("longitude", centerLon + dLon);
+    const nearby = (nearbyRows ?? []).filter(
+      (r: any) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude),
+    );
+
+    const map: Record<string, MatchInfo> = {};
+    for (const c of candidates) {
+      const ex = exactByOsm[c.id];
+      if (ex) {
+        const dist = Number.isFinite(ex.latitude) && Number.isFinite(ex.longitude)
+          ? haversineM(c.lat, c.lon, ex.latitude, ex.longitude)
+          : 0;
+        map[c.id] = {
+          opportunityId: ex.id,
+          title: ex.title ?? "Opportunità",
+          savedSqm: ex.covered_sqm != null ? Number(ex.covered_sqm) : null,
+          distanceM: Math.round(dist),
+          exact: true,
+        };
+        continue;
+      }
+      let best: MatchInfo | null = null;
+      for (const r of nearby) {
+        const dist = haversineM(c.lat, c.lon, Number(r.latitude), Number(r.longitude));
+        if (dist > 30) continue;
+        const savedArea = r.covered_sqm != null ? Number(r.covered_sqm) : null;
+        const areaOk =
+          savedArea != null && savedArea > 0 &&
+          Math.abs(savedArea - c.areaSqm) / Math.max(savedArea, c.areaSqm) <= 0.05;
+        if (!areaOk) continue;
+        if (!best || dist < best.distanceM) {
+          best = {
+            opportunityId: r.id,
+            title: r.title ?? "Opportunità",
+            savedSqm: savedArea,
+            distanceM: Math.round(dist),
+            exact: false,
+          };
+        }
+      }
+      if (best) map[c.id] = best;
+    }
+    setMatchMap(map);
   }
 
   async function runSearch() {
     setError(null);
     setResults(null);
     setMeta(null);
-    setExistingMap({});
+    setMatchMap({});
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
@@ -199,7 +268,7 @@ function OsmView() {
         setResults([]);
       } else {
         setResults(candidates);
-        await refreshExisting(candidates);
+        await refreshExisting(candidates, la, lo, rk);
         if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
         else toast.success(`${candidates.length} candidati trovati`);
       }
@@ -241,9 +310,9 @@ function OsmView() {
   }
 
   async function saveCandidate(c: OsmCandidate, force = false) {
-    const existingId = existingMap[c.id];
-    if (existingId && !force) {
-      setConfirmDup({ c, opportunityId: existingId });
+    const match = matchMap[c.id];
+    if (match && !force) {
+      setConfirmDup({ c, match });
       return;
     }
     setSavingId(c.id);
@@ -376,7 +445,7 @@ function OsmView() {
           </div>
           {results.map((c) => {
             const status = compatStatusFromScore(c.compatibility);
-            const existingId = existingMap[c.id];
+            const match = matchMap[c.id];
             return (
               <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -396,9 +465,13 @@ function OsmView() {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
                       {c.compatibility}% · {COMPAT_LABEL[status]}
                     </span>
-                    {existingId ? (
+                    {match?.exact ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
                         Già in CRM
+                      </span>
+                    ) : match ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-orange-500/10 text-orange-700 border-orange-500/30">
+                        Possibile duplicato
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
@@ -438,9 +511,9 @@ function OsmView() {
                   >
                     OSM <ExternalLink className="w-3 h-3" />
                   </a>
-                  {existingId ? (
+                  {match?.exact ? (
                     <button
-                      onClick={() => openExisting(existingId)}
+                      onClick={() => openExisting(match.opportunityId)}
                       className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
                     >
                       <ExternalLink className="w-3.5 h-3.5" /> Apri opportunità
@@ -498,10 +571,23 @@ function OsmView() {
       {confirmDup && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmDup(null)}>
           <div className="bg-card border rounded-lg p-5 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-base">Possibile duplicato</h3>
+            <h3 className="font-semibold text-base">
+              {confirmDup.match.exact ? "Duplicato esatto" : "Possibile duplicato trovato"}
+            </h3>
             <p className="text-sm text-muted-foreground">
-              Questo candidato sembra già presente nelle opportunità (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).
+              {confirmDup.match.exact
+                ? <>Edificio già presente nel CRM (stesso OSM id <code className="text-xs">{confirmDup.c.id}</code>).</>
+                : "Edificio molto simile già presente nel CRM (stessa fonte OSM, coordinate e mq vicini)."}
             </p>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-1">
+              <div><span className="text-muted-foreground">Opportunità esistente:</span> <b>{confirmDup.match.title}</b></div>
+              <div>
+                <span className="text-muted-foreground">Mq salvati:</span>{" "}
+                {confirmDup.match.savedSqm != null ? `${confirmDup.match.savedSqm.toLocaleString("it-IT")} mq` : "—"}
+                <span className="text-muted-foreground"> · candidato:</span> {confirmDup.c.areaSqm.toLocaleString("it-IT")} mq
+              </div>
+              <div><span className="text-muted-foreground">Distanza stimata:</span> ~{confirmDup.match.distanceM} m</div>
+            </div>
             <div className="flex flex-wrap gap-2 justify-end">
               <button
                 onClick={() => setConfirmDup(null)}
@@ -510,7 +596,7 @@ function OsmView() {
                 Annulla
               </button>
               <button
-                onClick={() => openExisting(confirmDup.opportunityId)}
+                onClick={() => openExisting(confirmDup.match.opportunityId)}
                 className="px-3 py-1.5 text-xs rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1"
               >
                 <ExternalLink className="w-3 h-3" /> Apri opportunità esistente
