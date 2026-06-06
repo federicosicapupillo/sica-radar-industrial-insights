@@ -244,7 +244,7 @@ function OsmView() {
     setError(null);
     setResults(null);
     setMeta(null);
-    setExistingMap({});
+    setMatchMap({});
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
