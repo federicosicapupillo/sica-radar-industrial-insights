@@ -131,9 +131,16 @@ function OsmView() {
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
-  const [existingMap, setExistingMap] = useState<Record<string, string>>({}); // osm_id -> opportunity_id
+  type MatchInfo = {
+    opportunityId: string;
+    title: string;
+    savedSqm: number | null;
+    distanceM: number;
+    exact: boolean;
+  };
+  const [matchMap, setMatchMap] = useState<Record<string, MatchInfo>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
-  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; opportunityId: string } | null>(null);
+  const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
@@ -152,23 +159,85 @@ function OsmView() {
 
   useEffect(() => { refreshLastSearches(); }, [refreshLastSearches]);
 
-  async function refreshExisting(candidates: OsmCandidate[]) {
+  function haversineM(aLat: number, aLon: number, bLat: number, bLon: number) {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLon = toRad(bLon - aLon);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+
+  async function refreshExisting(candidates: OsmCandidate[], centerLat: number, centerLon: number, radiusKm: number) {
     if (candidates.length === 0) {
-      setExistingMap({});
+      setMatchMap({});
       return;
     }
     const urls = candidates.map((c) => `https://www.openstreetmap.org/${c.id}`);
-    const { data } = await supabase
+    const { data: exactRows } = await supabase
       .from("opportunities")
-      .select("id, source_url")
+      .select("id, title, source_url, latitude, longitude, covered_sqm")
       .eq("source_type", "OpenStreetMap/Overpass")
       .in("source_url", urls);
-    const map: Record<string, string> = {};
-    (data ?? []).forEach((row: any) => {
+    const exactByOsm: Record<string, any> = {};
+    (exactRows ?? []).forEach((row: any) => {
       const m = /openstreetmap\.org\/(.+)$/.exec(row.source_url ?? "");
-      if (m) map[m[1]] = row.id;
+      if (m) exactByOsm[m[1]] = row;
     });
-    setExistingMap(map);
+
+    const bufKm = radiusKm + 0.2;
+    const dLat = bufKm / 111;
+    const dLon = bufKm / (111 * Math.cos((centerLat * Math.PI) / 180) || 1);
+    const { data: nearbyRows } = await supabase
+      .from("opportunities")
+      .select("id, title, latitude, longitude, covered_sqm")
+      .eq("source_type", "OpenStreetMap/Overpass")
+      .gte("latitude", centerLat - dLat)
+      .lte("latitude", centerLat + dLat)
+      .gte("longitude", centerLon - dLon)
+      .lte("longitude", centerLon + dLon);
+    const nearby = (nearbyRows ?? []).filter(
+      (r: any) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude),
+    );
+
+    const map: Record<string, MatchInfo> = {};
+    for (const c of candidates) {
+      const ex = exactByOsm[c.id];
+      if (ex) {
+        const dist = Number.isFinite(ex.latitude) && Number.isFinite(ex.longitude)
+          ? haversineM(c.lat, c.lon, ex.latitude, ex.longitude)
+          : 0;
+        map[c.id] = {
+          opportunityId: ex.id,
+          title: ex.title ?? "Opportunità",
+          savedSqm: ex.covered_sqm != null ? Number(ex.covered_sqm) : null,
+          distanceM: Math.round(dist),
+          exact: true,
+        };
+        continue;
+      }
+      let best: MatchInfo | null = null;
+      for (const r of nearby) {
+        const dist = haversineM(c.lat, c.lon, Number(r.latitude), Number(r.longitude));
+        if (dist > 30) continue;
+        const savedArea = r.covered_sqm != null ? Number(r.covered_sqm) : null;
+        const areaOk =
+          savedArea != null && savedArea > 0 &&
+          Math.abs(savedArea - c.areaSqm) / Math.max(savedArea, c.areaSqm) <= 0.05;
+        if (!areaOk) continue;
+        if (!best || dist < best.distanceM) {
+          best = {
+            opportunityId: r.id,
+            title: r.title ?? "Opportunità",
+            savedSqm: savedArea,
+            distanceM: Math.round(dist),
+            exact: false,
+          };
+        }
+      }
+      if (best) map[c.id] = best;
+    }
+    setMatchMap(map);
   }
 
   async function runSearch() {
