@@ -604,11 +604,40 @@ function OsmView() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Field label="Mq target" value={targetSqm} onChange={setTargetSqm} placeholder="4000" type="number" />
                 <Field label="Tolleranza %" value={tolerancePct} onChange={setTolerancePct} placeholder="30" type="number" />
-                <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+                <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="2" type="number" />
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Modalità ricerca OSM</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSearchMode("light")}
+                    className={`text-xs px-3 py-1.5 rounded-md border ${searchMode === "light" ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"}`}
+                  >
+                    Ricerca leggera edificio (consigliata)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearchMode("extended")}
+                    className={`text-xs px-3 py-1.5 rounded-md border ${searchMode === "extended" ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"}`}
+                  >
+                    Ricerca estesa industriale
+                  </button>
+                </div>
+                {searchMode === "extended" && (
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Ricerca più pesante: può richiedere più tempo o fallire su Overpass.
+                  </div>
+                )}
               </div>
               <div className="text-xs text-muted-foreground">
                 Range mq calcolato: <b>{minSqm.toLocaleString("it-IT")}</b> – <b>{maxSqm.toLocaleString("it-IT")}</b> mq
               </div>
+              {Number(radiusKm) > 5 && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  Raggio ampio: la ricerca potrebbe fallire. Prova 2-3 km per risultati più stabili.
+                </div>
+              )}
               {zone && (
                 <div className="text-xs bg-muted/30 border rounded-md px-3 py-2">
                   Zona selezionata: <b>{zone.label}</b> — coordinate usate: <b>{zone.lat.toFixed(4)}, {zone.lon.toFixed(4)}</b> — raggio consigliato <b>{zone.radiusKm} km</b>
@@ -621,11 +650,11 @@ function OsmView() {
                 <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                   <Field label="Latitudine" value={lat} onChange={setLat} placeholder="44.0350" />
                   <Field label="Longitudine" value={lon} onChange={setLon} placeholder="10.1390" />
-                  <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="4" type="number" />
+                  <Field label="Raggio (km)" value={radiusKm} onChange={setRadiusKm} placeholder="2" type="number" />
                 </div>
               </details>
               <div className="text-xs text-muted-foreground bg-muted/30 border rounded-md px-3 py-2">
-                Per risultati più stabili usa <b>raggio 3-5 km</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
+                Per risultati più stabili usa <b>raggio 2-3 km</b> e modalità <b>leggera</b>. Per capannoni da 4.000 mq prova <b>tolleranza 30-40%</b>.
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -648,7 +677,24 @@ function OsmView() {
                   </a>
                 )}
               </div>
-              {error && <div className="text-sm text-destructive">{error}</div>}
+              {error && (
+                <div className="space-y-2 border border-destructive/40 bg-destructive/5 rounded-md p-3">
+                  <div className="text-sm text-destructive">{error}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={runSearch} disabled={loading} className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent disabled:opacity-60">Riprova</button>
+                    <button onClick={() => { setRadiusKm("2"); setError(null); }} className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent">Riduci raggio a 2 km</button>
+                    {searchMode === "extended" && (
+                      <button onClick={() => { setSearchMode("light"); setError(null); }} className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent">Passa a ricerca leggera</button>
+                    )}
+                    {lat && lon && (
+                      <a href={`https://www.google.com/maps?q=${lat},${lon}`} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1">
+                        Apri centro su Maps <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    <button onClick={() => navigate({ to: "/misuratore" })} className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent">Usa Misuratore manuale</button>
+                  </div>
+                </div>
+              )}
             </>
           );
         })()}
