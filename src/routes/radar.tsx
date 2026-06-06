@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink, Search, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { compatStatusFromScore, COMPAT_LABEL, COMPAT_CLS } from "@/lib/compatibility";
+import { searchOverpass, type OsmCandidatePayload, type OverpassResult } from "@/lib/overpass.functions";
 
 export const Route = createFileRoute("/radar")({
   component: RadarPage,
@@ -18,86 +20,7 @@ export const Route = createFileRoute("/radar")({
 
 type Mode = "demo" | "osm";
 
-type OsmCandidate = {
-  id: string;
-  name: string | null;
-  tags: Record<string, string>;
-  areaSqm: number;
-  lat: number;
-  lon: number;
-  geometry: Array<{ lat: number; lon: number }>;
-  diffPct: number;
-  compatibility: number;
-};
-
-// ----------------- Overpass helpers -----------------
-
-// Spherical Mercator-ish planar area for small polygons (sufficient for capannoni < 100k mq).
-function polygonAreaSqm(coords: Array<{ lat: number; lon: number }>): number {
-  if (coords.length < 3) return 0;
-  const R = 6378137;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  // Use shoelace on equirectangular projection at the polygon's mean latitude.
-  const lat0 = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
-  const cosLat0 = Math.cos(toRad(lat0));
-  const pts = coords.map((c) => ({
-    x: toRad(c.lon) * R * cosLat0,
-    y: toRad(c.lat) * R,
-  }));
-  let sum = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % pts.length];
-    sum += a.x * b.y - b.x * a.y;
-  }
-  return Math.abs(sum) / 2;
-}
-
-function centroid(coords: Array<{ lat: number; lon: number }>) {
-  const lat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
-  const lon = coords.reduce((s, c) => s + c.lon, 0) / coords.length;
-  return { lat, lon };
-}
-
-function buildOverpassQL(lat: number, lon: number, radiusKm: number): string {
-  const r = Math.max(50, Math.round(radiusKm * 1000));
-  return `[out:json][timeout:25];
-(
-  way["building"="industrial"](around:${r},${lat},${lon});
-  way["building"="warehouse"](around:${r},${lat},${lon});
-  way["building"="commercial"](around:${r},${lat},${lon});
-  way["landuse"="industrial"](around:${r},${lat},${lon});
-  way["industrial"](around:${r},${lat},${lon});
-);
-out tags geom;`;
-}
-
-async function queryOverpass(ql: string): Promise<any> {
-  // kumi.systems risponde più rapidamente da browser; overpass-api.de spesso 504/406 via CORS.
-  const endpoints = [
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-  ];
-  let lastErr: unknown;
-  for (const url of endpoints) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(ql),
-      });
-      if (!res.ok) {
-        lastErr = new Error(`Overpass ${res.status} su ${new URL(url).host}`);
-        continue;
-      }
-      return await res.json();
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr ?? new Error("Overpass non raggiungibile");
-}
+type OsmCandidate = OsmCandidatePayload;
 
 // ----------------- Component -----------------
 
@@ -207,6 +130,8 @@ function OsmView() {
   const [results, setResults] = useState<OsmCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [meta, setMeta] = useState<Omit<OverpassResult, "candidates"> | null>(null);
+  const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
   const tol = Number(tolerancePct) || 0;
@@ -216,6 +141,7 @@ function OsmView() {
   async function runSearch() {
     setError(null);
     setResults(null);
+    setMeta(null);
     const la = Number(lat), lo = Number(lon), rk = Number(radiusKm);
     if (!Number.isFinite(la) || !Number.isFinite(lo) || !Number.isFinite(rk) || rk <= 0) {
       setError("Inserisci lat/lon validi e raggio > 0");
@@ -227,40 +153,26 @@ function OsmView() {
     }
     setLoading(true);
     try {
-      const ql = buildOverpassQL(la, lo, rk);
-      const data = await queryOverpass(ql);
-      const elems: any[] = Array.isArray(data?.elements) ? data.elements : [];
-      const cands: OsmCandidate[] = [];
-      for (const el of elems) {
-        const geom = Array.isArray(el.geometry) ? el.geometry : null;
-        if (!geom || geom.length < 3) continue;
-        const area = polygonAreaSqm(geom);
-        if (area < minSqm || area > maxSqm) continue;
-        const c = centroid(geom);
-        const diffPct = ((area - target) / target) * 100;
-        const score = Math.max(0, Math.round(100 - Math.min(100, Math.abs(diffPct) * 2)));
-        cands.push({
-          id: `${el.type}/${el.id}`,
-          name: el.tags?.name ?? null,
-          tags: el.tags ?? {},
-          areaSqm: Math.round(area),
-          lat: c.lat,
-          lon: c.lon,
-          geometry: geom,
-          diffPct,
-          compatibility: score,
-        });
+      const res = await runOverpass({
+        data: { lat: la, lon: lo, radiusKm: rk, targetSqm: target, tolerancePct: tol },
+      });
+      const { candidates, ...rest } = res;
+      setMeta(rest);
+      if (!res.ok) {
+        setError(res.error ?? "Ricerca OSM non completata. Overpass non disponibile o troppo lento. Riprova riducendo raggio o cambiando zona.");
+        setResults([]);
+        return;
       }
-      cands.sort((a, b) => b.compatibility - a.compatibility);
-      setResults(cands.slice(0, 50));
-      if (cands.length === 0) toast.info("Nessun candidato OSM nel range mq.");
-      else toast.success(`${cands.length} candidati trovati`);
+      setResults(candidates);
+      if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
+      else toast.success(`${candidates.length} candidati trovati`);
     } catch (e: any) {
       setError(e?.message ?? "Errore Overpass");
     } finally {
       setLoading(false);
     }
   }
+
 
   async function saveCandidate(c: OsmCandidate) {
     setSavingId(c.id);
@@ -364,6 +276,20 @@ function OsmView() {
         </div>
         {error && <div className="text-sm text-destructive">{error}</div>}
       </section>
+
+      {meta && (
+        <section className="bg-card border rounded-lg p-4 text-xs space-y-1">
+          <div className="font-semibold text-sm mb-1 flex items-center gap-2">
+            <Info className="w-4 h-4 text-primary" /> Stato fonte dati
+          </div>
+          <div><span className="text-muted-foreground">Modalità:</span> OSM reale server-side</div>
+          <div><span className="text-muted-foreground">Endpoint usato:</span> {meta.endpointUsed ?? "—"}</div>
+          <div><span className="text-muted-foreground">Tempo risposta:</span> {meta.responseTimeMs} ms{meta.cached ? " (cache)" : ""}</div>
+          <div><span className="text-muted-foreground">Risultati grezzi:</span> {meta.rawCount}</div>
+          <div><span className="text-muted-foreground">Risultati compatibili:</span> {results?.length ?? 0}</div>
+          {meta.error && <div className="text-destructive"><span className="text-muted-foreground">Errore endpoint:</span> {meta.error}</div>}
+        </section>
+      )}
 
       {/* Results */}
       {results && (
