@@ -210,7 +210,8 @@ function OsmView() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
-  const [radiusKm, setRadiusKm] = useState("4");
+  const [radiusKm, setRadiusKm] = useState("2");
+  const [searchMode, setSearchMode] = useState<"light" | "extended">("light");
 
   const [targetSqm, setTargetSqm] = useState("4000");
   const [tolerancePct, setTolerancePct] = useState("30");
