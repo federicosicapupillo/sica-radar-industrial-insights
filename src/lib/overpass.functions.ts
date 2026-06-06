@@ -91,7 +91,7 @@ export const searchOverpass = createServerFn({ method: "POST" })
       .object({
         lat: z.number().min(-90).max(90),
         lon: z.number().min(-180).max(180),
-        radiusKm: z.number().min(0.1).max(25),
+        radiusKm: z.number().min(0.1).max(50),
         targetSqm: z.number().min(1).max(1_000_000),
         tolerancePct: z.number().min(0).max(100),
       })
