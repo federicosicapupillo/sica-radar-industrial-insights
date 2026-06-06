@@ -141,6 +141,25 @@ function OsmView() {
   const [matchMap, setMatchMap] = useState<Record<string, MatchInfo>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
+  type OccupantDraft = {
+    company: string;
+    sign: string;
+    phone: string;
+    email: string;
+    website: string;
+    source: string;
+    confidence: string;
+    notes: string;
+    open: boolean;
+  };
+  const emptyDraft: OccupantDraft = {
+    company: "", sign: "", phone: "", email: "", website: "",
+    source: "", confidence: "", notes: "", open: false,
+  };
+  const [occupantDrafts, setOccupantDrafts] = useState<Record<string, OccupantDraft>>({});
+  const getDraft = (id: string) => occupantDrafts[id] ?? emptyDraft;
+  const patchDraft = (id: string, p: Partial<OccupantDraft>) =>
+    setOccupantDrafts((m) => ({ ...m, [id]: { ...(m[id] ?? emptyDraft), ...p } }));
   const runOverpass = useServerFn(searchOverpass);
 
   const target = Number(targetSqm) || 0;
