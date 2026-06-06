@@ -334,6 +334,7 @@ function OsmView() {
       setConfirmDup({ c, match });
       return;
     }
+    const d = getDraft(c.id);
     setSavingId(c.id);
     try {
       const status = compatStatusFromScore(c.compatibility);
@@ -377,6 +378,17 @@ function OsmView() {
           google_earth_url: `https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`,
           suggested_next_action: "Verificare occupante, altezza, accesso bilici e proprietà",
           last_measured_at: new Date().toISOString(),
+          // Occupant draft (optional)
+          occupant_company_name: d.company.trim() || null,
+          occupant_sign_name: d.sign.trim() || null,
+          occupant_phone: d.phone.trim() || null,
+          occupant_email: d.email.trim() || null,
+          occupant_website: d.website.trim() || null,
+          occupant_contact_source: d.source.trim() || null,
+          occupant_contact_confidence: d.confidence.trim() || null,
+          occupant_contact_notes: d.notes.trim() || null,
+          occupant_contact_status: (d.company.trim() || d.phone.trim()) ? "da_chiamare" : null,
+          commercial_notes: d.notes.trim() || null,
         })
         .select("id")
         .single();
@@ -393,6 +405,13 @@ function OsmView() {
 
   function openExisting(opportunityId: string) {
     navigate({ to: "/opportunita/$id", params: { id: opportunityId } });
+  }
+
+  async function copyCoords(la: number, lo: number) {
+    try {
+      await navigator.clipboard.writeText(`${la}, ${lo}`);
+      toast.success("Coordinate copiate");
+    } catch { toast.error("Impossibile copiare"); }
   }
 
 
