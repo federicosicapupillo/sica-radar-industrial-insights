@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Radar, AlertTriangle, CheckCircle2, XCircle, Info, ExternalLink, Search, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { compatStatusFromScore, COMPAT_LABEL, COMPAT_CLS } from "@/lib/compatibility";
+import { searchOverpass, type OsmCandidatePayload, type OverpassResult } from "@/lib/overpass.functions";
 
 export const Route = createFileRoute("/radar")({
   component: RadarPage,
