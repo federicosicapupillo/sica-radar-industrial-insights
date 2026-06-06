@@ -119,19 +119,99 @@ function DemoView() {
 
 // ----------------- OSM view -----------------
 
-const PRESETS: { label: string; lat: number; lon: number }[] = [
-  { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390 },
-  { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850 },
-  { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280 },
-  { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700 },
-  { label: "Santo Stefano Magra / La Spezia", lat: 44.1510, lon: 9.9150 },
+type Zone = { label: string; lat: number; lon: number; radiusKm: number };
+type Province = { name: string; zones: Zone[] };
+type Region = { name: string; provinces: Province[] };
+
+const ZONES: Region[] = [
+  {
+    name: "Toscana",
+    provinces: [
+      { name: "Massa-Carrara", zones: [
+        { label: "Massa zona industriale", lat: 44.0350, lon: 10.1390, radiusKm: 4 },
+        { label: "Massa / Carrara / Avenza", lat: 44.0440, lon: 10.0850, radiusKm: 4 },
+        { label: "Carrara zona industriale / marmo", lat: 44.0800, lon: 10.1000, radiusKm: 4 },
+      ]},
+      { name: "Lucca", zones: [
+        { label: "Pietrasanta / Versilia", lat: 43.9590, lon: 10.2280, radiusKm: 4 },
+        { label: "Viareggio / Montramito / Massarosa", lat: 43.8800, lon: 10.2700, radiusKm: 4 },
+      ]},
+      { name: "Pisa", zones: [
+        { label: "Pisa / Navicelli", lat: 43.6880, lon: 10.3910, radiusKm: 4 },
+      ]},
+    ],
+  },
+  {
+    name: "Liguria",
+    provinces: [
+      { name: "La Spezia", zones: [
+        { label: "La Spezia zona porto / industriale", lat: 44.1070, lon: 9.8280, radiusKm: 5 },
+        { label: "Santo Stefano Magra", lat: 44.1510, lon: 9.9150, radiusKm: 4 },
+        { label: "Sarzana", lat: 44.1110, lon: 9.9630, radiusKm: 4 },
+        { label: "Arcola / Vezzano Ligure", lat: 44.1190, lon: 9.8950, radiusKm: 4 },
+      ]},
+      { name: "Genova", zones: [
+        { label: "Genova / Bolzaneto", lat: 44.4560, lon: 8.9010, radiusKm: 5 },
+      ]},
+    ],
+  },
+  {
+    name: "Emilia-Romagna",
+    provinces: [
+      { name: "Parma", zones: [{ label: "Parma zona industriale", lat: 44.8050, lon: 10.3280, radiusKm: 5 }] },
+      { name: "Reggio Emilia", zones: [{ label: "Reggio Emilia zona industriale", lat: 44.6980, lon: 10.6310, radiusKm: 5 }] },
+      { name: "Modena", zones: [{ label: "Modena zona industriale", lat: 44.6470, lon: 10.9250, radiusKm: 5 }] },
+      { name: "Bologna", zones: [{ label: "Bologna / Interporto", lat: 44.6200, lon: 11.4100, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Lombardia",
+    provinces: [
+      { name: "Milano", zones: [
+        { label: "Milano hinterland industriale", lat: 45.4642, lon: 9.1900, radiusKm: 5 },
+        { label: "Rho / Pero", lat: 45.5320, lon: 9.0400, radiusKm: 5 },
+      ]},
+      { name: "Monza e Brianza", zones: [{ label: "Monza / Brianza", lat: 45.5840, lon: 9.2740, radiusKm: 5 }] },
+      { name: "Bergamo", zones: [{ label: "Bergamo zona industriale", lat: 45.6980, lon: 9.6770, radiusKm: 5 }] },
+      { name: "Brescia", zones: [{ label: "Brescia zona industriale", lat: 45.5410, lon: 10.2110, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Piemonte",
+    provinces: [
+      { name: "Torino", zones: [
+        { label: "Torino zona industriale", lat: 45.0700, lon: 7.6860, radiusKm: 5 },
+        { label: "Orbassano / Rivalta", lat: 45.0050, lon: 7.5380, radiusKm: 5 },
+      ]},
+      { name: "Novara", zones: [{ label: "Novara zona industriale", lat: 45.4460, lon: 8.6220, radiusKm: 5 }] },
+      { name: "Alessandria", zones: [{ label: "Alessandria zona industriale", lat: 44.9130, lon: 8.6150, radiusKm: 5 }] },
+    ],
+  },
+  {
+    name: "Veneto",
+    provinces: [
+      { name: "Verona", zones: [{ label: "Verona zona industriale", lat: 45.4380, lon: 10.9910, radiusKm: 5 }] },
+      { name: "Padova", zones: [{ label: "Padova zona industriale", lat: 45.4060, lon: 11.8760, radiusKm: 5 }] },
+      { name: "Vicenza", zones: [{ label: "Vicenza zona industriale", lat: 45.5450, lon: 11.5350, radiusKm: 5 }] },
+      { name: "Venezia", zones: [{ label: "Venezia / Marghera", lat: 45.4660, lon: 12.2560, radiusKm: 5 }] },
+    ],
+  },
+  { name: "Friuli-Venezia Giulia", provinces: [] },
+  { name: "Trentino-Alto Adige", provinces: [] },
+  { name: "Valle d'Aosta", provinces: [] },
 ];
 
 function OsmView() {
   const navigate = useNavigate();
-  const [lat, setLat] = useState("45.4642");
-  const [lon, setLon] = useState("9.1900");
-  const [radiusKm, setRadiusKm] = useState("3");
+  const [selRegion, setSelRegion] = useState<string>("");
+  const [selProvince, setSelProvince] = useState<string>("");
+  const [selZone, setSelZone] = useState<string>("");
+  const [zoneFilter, setZoneFilter] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [radiusKm, setRadiusKm] = useState("4");
+
   const [targetSqm, setTargetSqm] = useState("4000");
   const [tolerancePct, setTolerancePct] = useState("30");
   const [loading, setLoading] = useState(false);
