@@ -1197,7 +1197,7 @@ function OsmView() {
                   {isDismissed ? (
                     <button
                       type="button"
-                      onClick={() => setDismissed((m) => { const n = { ...m }; delete n[c.id]; return n; })}
+                      onClick={() => restoreCandidate(c)}
                       className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                     >
                       Ripristina
@@ -1205,7 +1205,7 @@ function OsmView() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setDismissed((m) => ({ ...m, [c.id]: true }))}
+                      onClick={() => discardCandidate(c)}
                       className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent text-muted-foreground"
                     >
                       Scarta
