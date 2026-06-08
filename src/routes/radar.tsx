@@ -428,6 +428,7 @@ function OsmView() {
       return;
     }
     lastRunRef.current = { key, at: now };
+    setSearchCenter({ lat: la, lon: lo });
     setLoading(true);
     let res: OverpassResult | null = null;
     let runtimeError: string | null = null;
