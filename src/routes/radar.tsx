@@ -1036,7 +1036,10 @@ function OsmView() {
             <span>{results.length} candidati nel range mq • fonte OpenStreetMap/Overpass</span>
             {Object.values(dismissed).filter(Boolean).length > 0 && (
               <button
-                onClick={() => setDismissed({})}
+                onClick={async () => {
+                  const toRestore = (results ?? []).filter((c) => dismissed[c.id]);
+                  for (const c of toRestore) await restoreCandidate(c);
+                }}
                 className="text-xs underline text-primary"
               >
                 Ripristina tutti gli scartati ({Object.values(dismissed).filter(Boolean).length})
