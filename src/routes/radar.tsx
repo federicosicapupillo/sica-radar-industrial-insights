@@ -788,6 +788,12 @@ function OsmView() {
               Consiglio: riduci raggio a 2 km{meta.mode === "extended" ? ", passa a Ricerca leggera edificio" : ""} o riprova tra qualche minuto.
             </div>
           )}
+          <div className="pt-2 mt-1 border-t space-y-1 text-muted-foreground">
+            <div><b className="text-foreground">Modalità leggera:</b> consigliata per prime ricerche rapide su singola zona.</div>
+            <div><b className="text-foreground">Modalità estesa:</b> utile per aree industriali ampie, ma può essere più lenta o restituire dati incompleti.</div>
+            <div><b className="text-foreground">Fonte OSM/Overpass:</b> dati collaborativi da verificare manualmente prima di contatti, offerte o valutazioni commerciali.</div>
+          </div>
+
         </section>
       )}
 
