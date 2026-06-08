@@ -1080,10 +1080,10 @@ function OsmView() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setVerifyOwnership((m) => ({ ...m, [c.id]: !m[c.id] }))}
-                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${verifyOwnership[c.id] ? "bg-amber-500/15 border-amber-500/40 text-amber-700" : "bg-card hover:bg-accent"}`}
+                    onClick={() => setPropVerifyOpen(c.id)}
+                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${propVerifyMap[c.id]?.status ? "bg-amber-500/15 border-amber-500/40 text-amber-700" : "bg-card hover:bg-accent"}`}
                   >
-                    {verifyOwnership[c.id] ? "✓ Da verificare proprietà" : "Da verificare proprietà"}
+                    {propVerifyMap[c.id]?.status ? "✓ Verifica proprietà" : "Verifica proprietà / occupante"}
                   </button>
                   <button
                     type="button"
