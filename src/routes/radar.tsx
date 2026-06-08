@@ -970,9 +970,27 @@ function OsmView() {
               </button>
             )}
           </div>
-          {results.filter((c) => !dismissed[c.id]).map((c) => {
+          {results.map((c) => {
             const status = compatStatusFromScore(c.compatibility);
             const match = matchMap[c.id];
+            const isDismissed = !!dismissed[c.id];
+            const savedOppId = savedMap[c.id] ?? (match?.exact ? match.opportunityId : null);
+            const cardState: "saved" | "match" | "dismissed" | "new" =
+              savedMap[c.id]
+                ? "saved"
+                : match?.exact
+                  ? "match"
+                  : isDismissed
+                    ? "dismissed"
+                    : "new";
+            const stateBadge =
+              cardState === "saved"
+                ? { label: "Salvato come opportunità", cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" }
+                : cardState === "match"
+                  ? { label: "Già presente in archivio", cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" }
+                  : cardState === "dismissed"
+                    ? { label: "Scartato", cls: "bg-muted text-muted-foreground border-border" }
+                    : { label: "Non salvato", cls: "bg-amber-500/10 text-amber-700 border-amber-500/30" };
             const quality = dataQuality(c);
             const interest = commercialInterest(c, quality);
             const distM = searchCenter ? Math.round(haversineM(searchCenter.lat, searchCenter.lon, c.lat, c.lon)) : null;
@@ -988,12 +1006,32 @@ function OsmView() {
                 ? "bg-amber-500/10 text-amber-700 border-amber-500/30"
                 : "bg-muted text-muted-foreground border-border";
             const note = noteDrafts[c.id] ?? { open: false, text: "" };
+            const chk = checklists[c.id] ?? {};
+            const chkOpen = !!checklistOpen[c.id];
+            const chkInsufficient = !c.name && !addr && quality.level === "bassa";
+            const nextStepText = nextStep(c, quality, interest);
+            const pv = propVerifyMap[c.id];
+            const pvStatusLabel: Record<string, string> = {
+              da_identificare: "Da identificare",
+              occupante: "Occupante trovato",
+              proprieta: "Proprietà trovata",
+              contatto: "Contatto trovato",
+              non_verificabile: "Non verificabile",
+            };
             return (
-              <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
+              <article
+                key={c.id}
+                className={`bg-card border rounded-lg p-4 space-y-3 ${isDismissed ? "opacity-60" : ""} ${cardState === "saved" || cardState === "match" ? "border-emerald-500/40" : ""}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-semibold truncate">
-                      {c.name ?? <span className="text-muted-foreground italic">Senza nome</span>}
+                    <div className="font-semibold truncate flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${stateBadge.cls}`}>
+                        {stateBadge.label}
+                      </span>
+                      <span className="truncate">
+                        {c.name ?? <span className="text-muted-foreground italic">Senza nome</span>}
+                      </span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
                       <span className="font-medium text-foreground/80">{buildingTypeLabel(c)}</span>
@@ -1010,21 +1048,14 @@ function OsmView() {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${qualityCls}`} title={quality.reason}>
                       Dato {quality.level}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
-                      Da verificare
-                    </span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-blue-500/10 text-blue-700 border-blue-500/30">
                       OpenStreetMap
                     </span>
-                    {match?.exact ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
-                        Già in CRM
-                      </span>
-                    ) : match ? (
+                    {match && !match.exact && cardState !== "saved" && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-orange-500/10 text-orange-700 border-orange-500/30">
                         Possibile duplicato
                       </span>
-                    ) : null}
+                    )}
                   </div>
                 </div>
 
@@ -1033,6 +1064,11 @@ function OsmView() {
                     Potenziale interesse commerciale: {interest.level.toUpperCase()}
                   </div>
                   <div className="opacity-80 mt-0.5">{interest.reason}</div>
+                </div>
+
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                  <div className="font-semibold text-primary">Prossimo passo consigliato</div>
+                  <div className="mt-0.5 text-foreground/90">{nextStepText}</div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -1081,17 +1117,27 @@ function OsmView() {
                   <button
                     type="button"
                     onClick={() => setPropVerifyOpen(c.id)}
-                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${propVerifyMap[c.id]?.status ? "bg-amber-500/15 border-amber-500/40 text-amber-700" : "bg-card hover:bg-accent"}`}
+                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${pv?.status ? "bg-amber-500/15 border-amber-500/40 text-amber-700" : "bg-card hover:bg-accent"}`}
                   >
-                    {propVerifyMap[c.id]?.status ? "✓ Verifica proprietà" : "Verifica proprietà / occupante"}
+                    {pv?.status ? `✓ ${pvStatusLabel[pv.status] ?? "Verifica proprietà"}` : "Verifica proprietà / occupante"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setDismissed((m) => ({ ...m, [c.id]: true }))}
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent text-muted-foreground"
-                  >
-                    Scarta
-                  </button>
+                  {isDismissed ? (
+                    <button
+                      type="button"
+                      onClick={() => setDismissed((m) => { const n = { ...m }; delete n[c.id]; return n; })}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                    >
+                      Ripristina
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDismissed((m) => ({ ...m, [c.id]: true }))}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent text-muted-foreground"
+                    >
+                      Scarta
+                    </button>
+                  )}
                 </div>
 
                 {note.open && (
@@ -1112,8 +1158,60 @@ function OsmView() {
                   </div>
                 )}
 
+                {/* Checklist verifica commerciale */}
+                <div className="border rounded-md bg-muted/20">
+                  <button
+                    type="button"
+                    onClick={() => setChecklistOpen((m) => ({ ...m, [c.id]: !m[c.id] }))}
+                    className="w-full px-3 py-2 flex items-center justify-between text-xs font-medium hover:bg-accent/40"
+                  >
+                    <span>
+                      Checklist verifica commerciale
+                      {(() => {
+                        const done = CHK_ITEMS.filter(([k]) => chk[k] && chk[k] !== "todo").length;
+                        return done > 0 ? <span className="ml-2 text-primary">· {done}/{CHK_ITEMS.length}</span> : null;
+                      })()}
+                    </span>
+                    <span className="text-muted-foreground">{chkOpen ? "−" : "+"}</span>
+                  </button>
+                  {chkOpen && (
+                    <div className="p-3 border-t space-y-2">
+                      {chkInsufficient && (
+                        <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-md px-2 py-1.5">
+                          Dati mappa insufficienti. Usa Google Maps/Earth o inserimento manuale per completare la verifica.
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        {CHK_ITEMS.map(([k, label]) => {
+                          const cur = (chk[k] ?? "todo") as ChkStatus;
+                          return (
+                            <div key={k} className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="flex-1 min-w-[180px]">{label}</span>
+                              <div className="inline-flex rounded-md border overflow-hidden">
+                                {(["todo", "ok", "na", "nr"] as ChkStatus[]).map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setChecklists((m) => ({ ...m, [c.id]: { ...(m[c.id] ?? {}), [k]: s } }))}
+                                    className={`px-2 py-0.5 text-[11px] border-l first:border-l-0 ${cur === s ? CHK_STATUS_CLS[s] + " font-semibold" : "hover:bg-accent"}`}
+                                  >
+                                    {CHK_STATUS_LABEL[s]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        La checklist verrà inclusa nelle note commerciali al salvataggio.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Occupant draft panel */}
-                {!match?.exact && (() => {
+                {cardState !== "match" && (() => {
                   const d = getDraft(c.id);
                   return (
                     <div className="border rounded-md bg-muted/20">
@@ -1163,17 +1261,25 @@ function OsmView() {
                 })()}
 
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {match?.exact ? (
-                    <button
-                      onClick={() => openExisting(match.opportunityId)}
-                      className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" /> Apri opportunità
-                    </button>
+                  {savedOppId ? (
+                    <>
+                      <button
+                        onClick={() => openExisting(savedOppId)}
+                        className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Apri scheda opportunità
+                      </button>
+                      <button
+                        onClick={() => setNoteDrafts((m) => ({ ...m, [c.id]: { ...(m[c.id] ?? { text: "" }), open: true } }))}
+                        className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+                      >
+                        Aggiorna nota
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => saveCandidate(c)}
-                      disabled={savingId === c.id}
+                      disabled={savingId === c.id || isDismissed}
                       className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                     >
                       {savingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -1186,6 +1292,99 @@ function OsmView() {
           })}
         </section>
       )}
+
+      {/* Property verify modal */}
+      {propVerifyOpen && (() => {
+        const id = propVerifyOpen;
+        const c = results?.find((r) => r.id === id);
+        const pv = propVerifyMap[id] ?? emptyPropVerify;
+        const setPv = (p: Partial<PropVerifyDraft>) =>
+          setPropVerifyMap((m) => ({ ...m, [id]: { ...(m[id] ?? emptyPropVerify), ...p } }));
+        const addr = c ? addressLabel(c) : null;
+        const searchQuery = c ? encodeURIComponent(`${c.name ?? ""} ${addr ?? ""} ${c.lat.toFixed(5)},${c.lon.toFixed(5)}`.trim()) : "";
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setPropVerifyOpen(null)}>
+            <div className="bg-card border rounded-lg p-5 max-w-2xl w-full my-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-base">Verifica proprietà / occupante</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Supporto manuale al lavoro commerciale. Nessuno scraping automatico.
+                  </p>
+                </div>
+                <button onClick={() => setPropVerifyOpen(null)} className="text-xs text-muted-foreground hover:text-foreground">Chiudi</button>
+              </div>
+
+              {c && (
+                <div className="flex flex-wrap gap-2">
+                  <a href={`https://www.google.com/maps?q=${c.lat},${c.lon}`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1">
+                    Apri in Google Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a href={`https://www.google.com/search?q=${searchQuery}`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1">
+                    Cerca su Google <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a href={`https://www.google.com/maps?q=&layer=c&cbll=${c.lat},${c.lon}`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1">
+                    Apri Street View <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+
+              <div>
+                <label className="block">
+                  <span className="block text-xs font-medium text-muted-foreground mb-1">Stato verifica proprietà</span>
+                  <select
+                    value={pv.status}
+                    onChange={(e) => setPv({ status: e.target.value as PropVerifyDraft["status"] })}
+                    className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+                  >
+                    <option value="">— Seleziona —</option>
+                    <option value="da_identificare">Da identificare</option>
+                    <option value="occupante">Occupante trovato</option>
+                    <option value="proprieta">Proprietà trovata</option>
+                    <option value="contatto">Contatto trovato</option>
+                    <option value="non_verificabile">Non verificabile</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Field label="Nome azienda visibile" value={pv.visibleCompany} onChange={(v) => setPv({ visibleCompany: v })} placeholder="Insegna / nome esposto" />
+                <Field label="Possibile occupante" value={pv.possibleOccupant} onChange={(v) => setPv({ possibleOccupant: v })} placeholder="Azienda che utilizza l'immobile" />
+                <Field label="Possibile proprietà" value={pv.possibleOwner} onChange={(v) => setPv({ possibleOwner: v })} placeholder="Da verificare con visura/catasto" />
+                <Field label="Telefono trovato" value={pv.phone} onChange={(v) => setPv({ phone: v })} placeholder="+39 ..." />
+                <Field label="Email trovata" value={pv.email} onChange={(v) => setPv({ email: v })} placeholder="info@..." />
+                <Field label="Fonte del dato" value={pv.source} onChange={(v) => setPv({ source: v })} placeholder="Es. Google, sito azienda, passaggio" />
+              </div>
+
+              <label className="block">
+                <span className="block text-xs font-medium text-muted-foreground mb-1">Note verifica</span>
+                <textarea
+                  value={pv.notes}
+                  onChange={(e) => setPv({ notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  placeholder="Cosa hai osservato? Quali fonti hai consultato? Cosa resta da verificare?"
+                />
+              </label>
+
+              <p className="text-[11px] text-muted-foreground">
+                Solo dati osservati o trovati manualmente. Non confondere occupante con proprietario. Verificare sempre con visura/catasto prima del contatto.
+              </p>
+
+              <div className="flex flex-wrap gap-2 justify-end pt-1">
+                <button onClick={() => setPropVerifyOpen(null)} className="px-3 py-1.5 text-xs rounded-md border hover:bg-accent">Annulla</button>
+                <button
+                  onClick={() => { toast.success("Verifica salvata nella card. Sarà inclusa nelle note al salvataggio."); setPropVerifyOpen(null); }}
+                  className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Salva note nella scheda
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
 
 
       {/* Storico ricerche */}
