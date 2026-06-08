@@ -651,10 +651,42 @@ function OsmView() {
         },
         properties: { osm_id: c.id, tags: c.tags, source: "OpenStreetMap/Overpass" },
       };
+      const quality = dataQuality(c);
+      const interest = commercialInterest(c, quality);
+      const pv = propVerifyMap[c.id];
+      const verStatusMap: Record<string, string> = {
+        da_identificare: "da_identificare",
+        occupante: "occupante_trovato",
+        proprieta: "proprieta_trovata",
+        contatto: "contatto_trovato",
+        non_verificabile: "non_verificabile",
+      };
+      const verificationStatus = pv?.status ? verStatusMap[pv.status] : "da_identificare";
+      const radarSource = searchMode === "extended" ? "osm_overpass_extended" : "osm_overpass_light";
+      const radarMetadata = {
+        osm_id: c.id,
+        osm_type: c.id.split("/")[0] ?? null,
+        building_type: buildingTypeLabel(c),
+        tags: c.tags,
+        distance_m: searchCenter ? Math.round(haversineM(searchCenter.lat, searchCenter.lon, c.lat, c.lon)) : null,
+        area_sqm: c.areaSqm,
+        search_mode: searchMode,
+        original_coords: { lat: c.lat, lon: c.lon },
+        checklist: checklists[c.id] ?? {},
+        commercial_interest_reason: interest.reason,
+        next_step: nextStep(c, quality, interest),
+        data_quality_reason: quality.reason,
+        result_hash: resultHash(c),
+      };
       const { data, error } = await supabase
         .from("opportunities")
         .insert({
           title,
+          data_quality: quality.level,
+          commercial_interest: interest.level,
+          verification_status: verificationStatus,
+          radar_source: radarSource,
+          radar_metadata: radarMetadata as any,
           city: "Da verificare",
           province: "Da verificare",
           opportunity_status: "da_verificare",
