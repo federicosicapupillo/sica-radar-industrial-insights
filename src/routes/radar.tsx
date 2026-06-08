@@ -798,14 +798,89 @@ function OsmView() {
       )}
 
       {/* Results */}
-      {results && (
-        <section className="space-y-3">
-          <div className="text-sm text-muted-foreground">
-            {results.length} candidati nel range mq • fonte OpenStreetMap/Overpass
+      {results && results.length === 0 && meta?.ok && (
+        <section className="bg-card border rounded-lg p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <div className="font-semibold">Nessun immobile rilevato automaticamente</div>
+              <p className="text-muted-foreground mt-1">
+                Nessun immobile industriale rilevato automaticamente in questa zona con i parametri attuali.
+                Questo non significa che non esistano capannoni: i dati mappa OSM possono essere incompleti.
+              </p>
+            </div>
           </div>
-          {results.map((c) => {
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => { setRadiusKm(String(Math.min(10, (Number(radiusKm) || 2) + 2))); }}
+              className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+            >
+              Allarga raggio (+2 km)
+            </button>
+            {searchMode === "light" && (
+              <button
+                onClick={() => setSearchMode("extended")}
+                className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+              >
+                Passa a modalità estesa
+              </button>
+            )}
+            {searchCenter && (
+              <a
+                href={`https://www.google.com/maps?q=${searchCenter.lat},${searchCenter.lon}`}
+                target="_blank" rel="noreferrer"
+                className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent inline-flex items-center gap-1"
+              >
+                Apri zona su Google Maps <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <button
+              onClick={() => navigate({ to: "/opportunita/nuova" })}
+              className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+            >
+              Inserisci immobile manualmente
+            </button>
+            <button
+              onClick={() => navigate({ to: "/misuratore" })}
+              className="text-xs px-3 py-1.5 rounded-md border bg-card hover:bg-accent"
+            >
+              Usa misuratore superficie
+            </button>
+          </div>
+        </section>
+      )}
+
+      {results && results.length > 0 && (
+        <section className="space-y-3">
+          <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{results.length} candidati nel range mq • fonte OpenStreetMap/Overpass</span>
+            {Object.values(dismissed).filter(Boolean).length > 0 && (
+              <button
+                onClick={() => setDismissed({})}
+                className="text-xs underline text-primary"
+              >
+                Mostra {Object.values(dismissed).filter(Boolean).length} scartati
+              </button>
+            )}
+          </div>
+          {results.filter((c) => !dismissed[c.id]).map((c) => {
             const status = compatStatusFromScore(c.compatibility);
             const match = matchMap[c.id];
+            const quality = dataQuality(c);
+            const interest = commercialInterest(c, quality);
+            const distM = searchCenter ? Math.round(haversineM(searchCenter.lat, searchCenter.lon, c.lat, c.lon)) : null;
+            const addr = addressLabel(c);
+            const qualityCls = quality.level === "alta"
+              ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+              : quality.level === "media"
+                ? "bg-amber-500/10 text-amber-700 border-amber-500/30"
+                : "bg-muted text-muted-foreground border-border";
+            const interestCls = interest.level === "alto"
+              ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+              : interest.level === "medio"
+                ? "bg-amber-500/10 text-amber-700 border-amber-500/30"
+                : "bg-muted text-muted-foreground border-border";
+            const note = noteDrafts[c.id] ?? { open: false, text: "" };
             return (
               <article key={c.id} className="bg-card border rounded-lg p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -814,16 +889,25 @@ function OsmView() {
                       {c.name ?? <span className="text-muted-foreground italic">Senza nome</span>}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
-                      <span>OSM {c.id}</span>
-                      {c.tags.building && <span>building={c.tags.building}</span>}
-                      {c.tags.landuse && <span>landuse={c.tags.landuse}</span>}
-                      {c.tags.industrial && <span>industrial={c.tags.industrial}</span>}
-                      <span>lat {c.lat.toFixed(5)}, lon {c.lon.toFixed(5)}</span>
+                      <span className="font-medium text-foreground/80">{buildingTypeLabel(c)}</span>
+                      {addr && <span>· {addr}</span>}
+                      {distM != null && <span>· {distM < 1000 ? `${distM} m` : `${(distM / 1000).toFixed(2)} km`} dal centro</span>}
+                      <span>· OSM {c.id}</span>
+                      <span>· lat {c.lat.toFixed(5)}, lon {c.lon.toFixed(5)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border ${COMPAT_CLS[status]}`}>
                       {c.compatibility}% · {COMPAT_LABEL[status]}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${qualityCls}`} title={quality.reason}>
+                      Dato {quality.level}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
+                      Da verificare
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-blue-500/10 text-blue-700 border-blue-500/30">
+                      OpenStreetMap
                     </span>
                     {match?.exact ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
@@ -833,51 +917,45 @@ function OsmView() {
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-orange-500/10 text-orange-700 border-orange-500/30">
                         Possibile duplicato
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border bg-amber-500/10 text-amber-700 border-amber-500/30">
-                        Fonte OSM — da verificare
-                      </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <Stat label="Area stimata" value={`${c.areaSqm.toLocaleString("it-IT")} mq`} />
-                  <Stat label="Differenza target" value={`${c.diffPct >= 0 ? "+" : ""}${c.diffPct.toFixed(0)}%`} />
-                  <Stat label="Confidence" value="media" />
-                  <Stat label="Fonte" value="OpenStreetMap" />
+
+                <div className={`rounded-md border px-3 py-2 text-xs ${interestCls}`}>
+                  <div className="font-semibold">
+                    Potenziale interesse commerciale: {interest.level.toUpperCase()}
+                  </div>
+                  <div className="opacity-80 mt-0.5">{interest.reason}</div>
                 </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <Stat label="Superficie stimata" value={`${c.areaSqm.toLocaleString("it-IT")} mq`} />
+                  <Stat label="Differenza target" value={`${c.diffPct >= 0 ? "+" : ""}${c.diffPct.toFixed(0)}%`} />
+                  <Stat label="Qualità dato" value={quality.level} />
+                  <Stat label="Fonte" value="OSM / Overpass" />
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
-                  >
-                    Cerca su Maps <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(`capannone ${c.lat.toFixed(5)},${c.lon.toFixed(5)} azienda`)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
-                  >
-                    Cerca su Google <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <a
                     href={`https://www.google.com/maps?q=${c.lat},${c.lon}`}
-                    target="_blank"
-                    rel="noreferrer"
+                    target="_blank" rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                   >
-                    Apri Maps <ExternalLink className="w-3 h-3" />
+                    Apri in Google Maps <ExternalLink className="w-3 h-3" />
                   </a>
                   <a
                     href={`https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`}
-                    target="_blank"
-                    rel="noreferrer"
+                    target="_blank" rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                   >
-                    Apri Earth <ExternalLink className="w-3 h-3" />
+                    Misura su Maps/Earth <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href={`https://www.openstreetmap.org/${c.id}`}
+                    target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  >
+                    OSM <ExternalLink className="w-3 h-3" />
                   </a>
                   <button
                     type="button"
@@ -886,15 +964,46 @@ function OsmView() {
                   >
                     Copia coordinate
                   </button>
-                  <a
-                    href={`https://www.openstreetmap.org/${c.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
+                  <button
+                    type="button"
+                    onClick={() => setNoteDrafts((m) => ({ ...m, [c.id]: { ...(m[c.id] ?? { text: "" }), open: !note.open } }))}
+                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${note.text ? "bg-primary/10 border-primary/40 text-primary" : "bg-card hover:bg-accent"}`}
                   >
-                    OSM <ExternalLink className="w-3 h-3" />
-                  </a>
+                    {note.text ? "Nota aggiunta" : "Aggiungi nota"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerifyOwnership((m) => ({ ...m, [c.id]: !m[c.id] }))}
+                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border ${verifyOwnership[c.id] ? "bg-amber-500/15 border-amber-500/40 text-amber-700" : "bg-card hover:bg-accent"}`}
+                  >
+                    {verifyOwnership[c.id] ? "✓ Da verificare proprietà" : "Da verificare proprietà"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDismissed((m) => ({ ...m, [c.id]: true }))}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent text-muted-foreground"
+                  >
+                    Scarta
+                  </button>
                 </div>
+
+                {note.open && (
+                  <div className="border rounded-md bg-muted/20 p-3">
+                    <label className="block">
+                      <span className="block text-xs font-medium text-muted-foreground mb-1">Nota commerciale</span>
+                      <textarea
+                        value={note.text}
+                        onChange={(e) => setNoteDrafts((m) => ({ ...m, [c.id]: { open: true, text: e.target.value } }))}
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        placeholder="Es. da controllare insegna, sembra in uso, accesso bilici…"
+                      />
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      La nota verrà salvata insieme all'opportunità.
+                    </p>
+                  </div>
+                )}
 
                 {/* Occupant draft panel */}
                 {!match?.exact && (() => {
@@ -970,6 +1079,7 @@ function OsmView() {
           })}
         </section>
       )}
+
 
       {/* Storico ricerche */}
       {lastSearches.length > 0 && (
