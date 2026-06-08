@@ -251,6 +251,8 @@ function OsmView() {
   const [propVerifyMap, setPropVerifyMap] = useState<Record<string, PropVerifyDraft>>({});
   const [propVerifyOpen, setPropVerifyOpen] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, string>>({});
+  const [discardedMap, setDiscardedMap] = useState<Record<string, string>>({}); // candidate.id -> discarded row id
+  const [filter, setFilter] = useState<"all" | "highQuality" | "highInterest" | "verifyOwner" | "saved" | "discarded" | "unsaved">("all");
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   type OccupantDraft = {
