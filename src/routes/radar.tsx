@@ -228,6 +228,10 @@ function OsmView() {
     exact: boolean;
   };
   const [matchMap, setMatchMap] = useState<Record<string, MatchInfo>>({});
+  const [searchCenter, setSearchCenter] = useState<{ lat: number; lon: number } | null>(null);
+  const [dismissed, setDismissed] = useState<Record<string, boolean>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, { open: boolean; text: string }>>({});
+  const [verifyOwnership, setVerifyOwnership] = useState<Record<string, boolean>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   type OccupantDraft = {
