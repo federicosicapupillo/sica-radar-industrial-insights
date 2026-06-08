@@ -280,6 +280,58 @@ function OsmView() {
     return 2 * R * Math.asin(Math.sqrt(s));
   }
 
+  function buildingTypeLabel(c: OsmCandidate): string {
+    const t = c.tags ?? {};
+    if (t.building && t.building !== "yes") return `building=${t.building}`;
+    if (t.landuse) return `landuse=${t.landuse}`;
+    if (t.industrial) return `industrial=${t.industrial}`;
+    if (t.man_made) return `man_made=${t.man_made}`;
+    if (t.craft) return `craft=${t.craft}`;
+    if (t.building === "yes") return "edificio generico";
+    return "edificio";
+  }
+
+  function addressLabel(c: OsmCandidate): string | null {
+    const t = c.tags ?? {};
+    const street = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ");
+    const city = t["addr:city"] ?? t["addr:town"] ?? t["addr:village"] ?? null;
+    const parts = [street || null, city].filter(Boolean) as string[];
+    return parts.length ? parts.join(", ") : null;
+  }
+
+  type Quality = { level: "alta" | "media" | "bassa"; reason: string };
+  function dataQuality(c: OsmCandidate): Quality {
+    const t = c.tags ?? {};
+    const hasGeom = (c.geometry?.length ?? 0) >= 3;
+    const industrialSpecific =
+      (t.building && ["industrial", "warehouse", "manufacture", "commercial", "retail"].includes(t.building)) ||
+      !!t.industrial ||
+      t.landuse === "industrial";
+    if (c.name && industrialSpecific && hasGeom)
+      return { level: "alta", reason: "Nome, tag industriale specifico e geometria presenti." };
+    if (hasGeom && industrialSpecific)
+      return { level: "media", reason: "Tag compatibile e geometria, manca il nome." };
+    if (hasGeom && t.building && t.building !== "yes")
+      return { level: "media", reason: "Geometria e tag edificio specifico." };
+    return { level: "bassa", reason: "Edificio generico (building=yes) o tag poco specifici." };
+  }
+
+  type Interest = { level: "alto" | "medio" | "basso"; reason: string };
+  function commercialInterest(c: OsmCandidate, q: Quality): Interest {
+    const t = c.tags ?? {};
+    const industrialSpecific =
+      (t.building && ["industrial", "warehouse", "manufacture"].includes(t.building)) ||
+      !!t.industrial ||
+      t.landuse === "industrial";
+    const areaLarge = c.areaSqm >= 3000;
+    if (industrialSpecific && areaLarge && q.level !== "bassa")
+      return { level: "alto", reason: "Edificio industriale con tag specifico e superficie ampia." };
+    if (industrialSpecific || (q.level !== "bassa" && areaLarge))
+      return { level: "medio", reason: "Edificio compatibile ma dati da completare in loco." };
+    return { level: "basso", reason: "Edificio generico senza chiari segnali industriali." };
+  }
+
+
   async function refreshExisting(candidates: OsmCandidate[], centerLat: number, centerLon: number, radiusKm: number) {
     if (candidates.length === 0) {
       setMatchMap({});
