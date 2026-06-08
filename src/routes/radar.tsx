@@ -601,27 +601,65 @@ function OsmView() {
           source_url: `https://www.openstreetmap.org/${c.id}`,
           google_maps_url: `https://www.google.com/maps?q=${c.lat},${c.lon}`,
           google_earth_url: `https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`,
-          suggested_next_action: verifyOwnership[c.id]
-            ? "PRIORITÀ: verificare proprietà (visura/catasto). Poi occupante, altezza, accesso bilici."
-            : "Verificare occupante, altezza, accesso bilici e proprietà",
+          suggested_next_action: (() => {
+            const q = dataQuality(c);
+            const i = commercialInterest(c, q);
+            const pv = propVerifyMap[c.id];
+            const base = nextStep(c, q, i);
+            const owner = pv && pv.status && pv.status !== "non_verificabile"
+              ? `Verifica proprietà: ${pv.status}.`
+              : pv?.status === "non_verificabile"
+                ? "Proprietà non verificabile in autonomia: valutare visura/catasto."
+                : "Verificare proprietà, occupante, altezza e accesso bilici.";
+            return `${base} ${owner}`.trim();
+          })(),
           last_measured_at: new Date().toISOString(),
-          // Occupant draft (optional)
-          occupant_company_name: d.company.trim() || null,
-          occupant_sign_name: d.sign.trim() || null,
-          occupant_phone: d.phone.trim() || null,
-          occupant_email: d.email.trim() || null,
+          // Occupant draft (optional) - merged con possibile occupante della verifica proprietà
+          occupant_company_name: d.company.trim() || propVerifyMap[c.id]?.possibleOccupant.trim() || propVerifyMap[c.id]?.visibleCompany.trim() || null,
+          occupant_sign_name: d.sign.trim() || propVerifyMap[c.id]?.visibleCompany.trim() || null,
+          occupant_phone: d.phone.trim() || propVerifyMap[c.id]?.phone.trim() || null,
+          occupant_email: d.email.trim() || propVerifyMap[c.id]?.email.trim() || null,
           occupant_website: d.website.trim() || null,
-          occupant_contact_source: d.source.trim() || null,
+          occupant_contact_source: d.source.trim() || propVerifyMap[c.id]?.source.trim() || null,
           occupant_contact_confidence: d.confidence.trim() || null,
-          occupant_contact_notes: [d.notes.trim(), noteDrafts[c.id]?.text?.trim()].filter(Boolean).join("\n") || null,
-          occupant_contact_status: (d.company.trim() || d.phone.trim()) ? "da_chiamare" : null,
-          commercial_notes: [d.notes.trim(), noteDrafts[c.id]?.text?.trim()].filter(Boolean).join("\n") || null,
+          occupant_contact_notes: [
+            d.notes.trim(),
+            noteDrafts[c.id]?.text?.trim(),
+            propVerifyMap[c.id]?.notes?.trim(),
+            propVerifyMap[c.id]?.possibleOwner?.trim() ? `Possibile proprietà: ${propVerifyMap[c.id]!.possibleOwner.trim()}` : "",
+          ].filter(Boolean).join("\n") || null,
+          occupant_contact_status: (d.company.trim() || d.phone.trim() || propVerifyMap[c.id]?.phone.trim()) ? "da_chiamare" : null,
+          commercial_notes: (() => {
+            const q = dataQuality(c);
+            const i = commercialInterest(c, q);
+            const pv = propVerifyMap[c.id];
+            const blocks: string[] = [];
+            const userNote = [d.notes.trim(), noteDrafts[c.id]?.text?.trim()].filter(Boolean).join("\n");
+            if (userNote) blocks.push(userNote);
+            blocks.push(`Fonte: OpenStreetMap/Overpass • Qualità dato: ${q.level} • Potenziale commerciale: ${i.level}`);
+            blocks.push(`Prossimo passo: ${nextStep(c, q, i)}`);
+            const chk = checklistSummary(c.id);
+            if (chk) blocks.push(`Checklist verifica:\n${chk}`);
+            if (pv && (pv.status || pv.visibleCompany || pv.possibleOccupant || pv.possibleOwner || pv.phone || pv.email || pv.source || pv.notes)) {
+              const parts = [
+                pv.status ? `stato=${pv.status}` : "",
+                pv.visibleCompany ? `insegna=${pv.visibleCompany}` : "",
+                pv.possibleOccupant ? `occupante=${pv.possibleOccupant}` : "",
+                pv.possibleOwner ? `proprietà=${pv.possibleOwner}` : "",
+                pv.phone ? `tel=${pv.phone}` : "",
+                pv.email ? `email=${pv.email}` : "",
+                pv.source ? `fonte=${pv.source}` : "",
+              ].filter(Boolean).join(" · ");
+              blocks.push(`Verifica proprietà: ${parts}${pv.notes ? `\nNote: ${pv.notes}` : ""}`);
+            }
+            return blocks.join("\n\n");
+          })(),
         })
         .select("id")
         .single();
       if (error) throw error;
       toast.success("Candidato salvato come opportunità");
-      navigate({ to: "/opportunita/$id", params: { id: data.id } });
+      setSavedMap((m) => ({ ...m, [c.id]: data.id }));
     } catch (e: any) {
       toast.error(e?.message ?? "Errore salvataggio");
     } finally {
