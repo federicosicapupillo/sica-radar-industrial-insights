@@ -350,6 +350,56 @@ function OsmView() {
     return { level: "basso", reason: "Edificio generico senza chiari segnali industriali." };
   }
 
+  const CHK_ITEMS: Array<[string, string]> = [
+    ["industrial", "Realmente industriale/logistico/artigianale"],
+    ["bilici", "Accesso bilici"],
+    ["piazzale", "Piazzale esterno"],
+    ["altezza", "Altezza interna stimata"],
+    ["portoni", "Portoni carrabili"],
+    ["insegna", "Insegna o azienda occupante"],
+    ["stato", "Attivo / libero / dismesso / sottoutilizzato"],
+    ["annunci", "Annunci online collegati"],
+    ["proprieta", "Possibile proprietà"],
+    ["contatti", "Contatti disponibili"],
+  ];
+  const CHK_STATUS_LABEL: Record<ChkStatus, string> = {
+    todo: "Da fare",
+    ok: "Verificato",
+    na: "Non disponibile",
+    nr: "Non rilevante",
+  };
+  const CHK_STATUS_CLS: Record<ChkStatus, string> = {
+    todo: "bg-card text-foreground border-border",
+    ok: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
+    na: "bg-muted text-muted-foreground border-border",
+    nr: "bg-muted text-muted-foreground border-border opacity-70",
+  };
+
+  function nextStep(c: OsmCandidate, q: Quality, i: Interest): string {
+    if (q.level === "bassa")
+      return "Dato troppo generico: verifica su Google Maps/Earth prima di salvare.";
+    if (!c.name && !addressLabel(c))
+      return "Apri Google Maps e verifica insegne, accessi e indirizzo.";
+    if (i.level === "alto")
+      return "Cerca eventuale azienda occupante online e salva come opportunità da lavorare.";
+    if (q.level === "media")
+      return "Misura superficie indicativa su Maps/Earth e completa manualmente prima di salvare.";
+    return "Salva come opportunità e completa manualmente le verifiche sul campo.";
+  }
+
+  function checklistSummary(id: string): string {
+    const cl = checklists[id];
+    if (!cl) return "";
+    const lines: string[] = [];
+    for (const [k, label] of CHK_ITEMS) {
+      const s = cl[k];
+      if (s && s !== "todo") lines.push(`• ${label}: ${CHK_STATUS_LABEL[s]}`);
+    }
+    return lines.join("\n");
+  }
+
+
+
 
   async function refreshExisting(candidates: OsmCandidate[], centerLat: number, centerLon: number, radiusKm: number) {
     if (candidates.length === 0) {
