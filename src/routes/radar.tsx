@@ -1078,7 +1078,57 @@ function OsmView() {
               </button>
             )}
           </div>
-          {results.map((c) => {
+
+          {(() => {
+            const counts = {
+              all: results.length,
+              highQuality: results.filter((c) => dataQuality(c).level === "alta").length,
+              highInterest: results.filter((c) => commercialInterest(c, dataQuality(c)).level === "alto").length,
+              verifyOwner: results.filter((c) => !propVerifyMap[c.id]?.status || propVerifyMap[c.id]?.status === "da_identificare").length,
+              saved: results.filter((c) => savedMap[c.id] || matchMap[c.id]?.exact).length,
+              discarded: results.filter((c) => dismissed[c.id]).length,
+              unsaved: results.filter((c) => !savedMap[c.id] && !matchMap[c.id]?.exact && !dismissed[c.id]).length,
+            };
+            const chips: Array<[typeof filter, string]> = [
+              ["all", `Tutti (${counts.all})`],
+              ["highQuality", `Alta qualità (${counts.highQuality})`],
+              ["highInterest", `Interesse alto (${counts.highInterest})`],
+              ["verifyOwner", `Da verificare proprietà (${counts.verifyOwner})`],
+              ["saved", `Salvati (${counts.saved})`],
+              ["unsaved", `Non salvati (${counts.unsaved})`],
+              ["discarded", `Scartati (${counts.discarded})`],
+            ];
+            return (
+              <div className="flex flex-wrap gap-2">
+                {chips.map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setFilter(k)}
+                    className={`text-xs px-3 py-1.5 rounded-md border ${filter === k ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {results.filter((c) => {
+            const q = dataQuality(c);
+            const i = commercialInterest(c, q);
+            const isSaved = !!savedMap[c.id] || !!matchMap[c.id]?.exact;
+            const isDis = !!dismissed[c.id];
+            switch (filter) {
+              case "highQuality": return q.level === "alta";
+              case "highInterest": return i.level === "alto";
+              case "verifyOwner": return !propVerifyMap[c.id]?.status || propVerifyMap[c.id]?.status === "da_identificare";
+              case "saved": return isSaved;
+              case "discarded": return isDis;
+              case "unsaved": return !isSaved && !isDis;
+              default: return true;
+            }
+          }).map((c) => {
             const status = compatStatusFromScore(c.compatibility);
             const match = matchMap[c.id];
             const isDismissed = !!dismissed[c.id];
