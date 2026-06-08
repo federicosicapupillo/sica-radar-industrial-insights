@@ -251,6 +251,8 @@ function OsmView() {
   const [propVerifyMap, setPropVerifyMap] = useState<Record<string, PropVerifyDraft>>({});
   const [propVerifyOpen, setPropVerifyOpen] = useState<string | null>(null);
   const [savedMap, setSavedMap] = useState<Record<string, string>>({});
+  const [discardedMap, setDiscardedMap] = useState<Record<string, string>>({}); // candidate.id -> discarded row id
+  const [filter, setFilter] = useState<"all" | "highQuality" | "highInterest" | "verifyOwner" | "saved" | "discarded" | "unsaved">("all");
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   type OccupantDraft = {
@@ -400,6 +402,76 @@ function OsmView() {
 
 
 
+  function resultHash(c: OsmCandidate): string {
+    return `${c.id}|${c.lat.toFixed(5)}|${c.lon.toFixed(5)}|${Math.round(c.areaSqm)}`;
+  }
+
+  async function refreshDiscarded(candidates: OsmCandidate[]) {
+    if (candidates.length === 0) { setDiscardedMap({}); return; }
+    const hashes = candidates.map(resultHash);
+    const { data } = await supabase
+      .from("radar_discarded_results" as any)
+      .select("id, result_hash, restored_at")
+      .in("result_hash", hashes);
+    const dMap: Record<string, string> = {};
+    const dismissedNext: Record<string, boolean> = {};
+    (data ?? []).forEach((r: any) => {
+      const cand = candidates.find((c) => resultHash(c) === r.result_hash);
+      if (!cand) return;
+      dMap[cand.id] = r.id;
+      if (!r.restored_at) dismissedNext[cand.id] = true;
+    });
+    setDiscardedMap(dMap);
+    setDismissed(dismissedNext);
+  }
+
+  async function discardCandidate(c: OsmCandidate) {
+    setDismissed((m) => ({ ...m, [c.id]: true }));
+    try {
+      const quality = dataQuality(c);
+      const interest = commercialInterest(c, quality);
+      const existingId = discardedMap[c.id];
+      if (existingId) {
+        await supabase.from("radar_discarded_results" as any)
+          .update({ restored_at: null, discarded_at: new Date().toISOString() })
+          .eq("id", existingId);
+      } else {
+        const { data } = await supabase.from("radar_discarded_results" as any).insert({
+          osm_id: c.id.split("/")[1] ?? c.id,
+          osm_type: c.id.split("/")[0] ?? null,
+          result_hash: resultHash(c),
+          title: c.name ?? null,
+          address: addressLabel(c),
+          lat: c.lat,
+          lng: c.lon,
+          building_type: buildingTypeLabel(c),
+          data_quality: quality.level,
+          commercial_interest: interest.level,
+          discard_reason: noteDrafts[c.id]?.text?.trim() || null,
+        }).select("id").single();
+        if (data) setDiscardedMap((m) => ({ ...m, [c.id]: (data as any).id }));
+      }
+    } catch (e: any) {
+      // non bloccare UI
+      console.warn("discard persist failed", e?.message);
+    }
+  }
+
+  async function restoreCandidate(c: OsmCandidate) {
+    setDismissed((m) => { const n = { ...m }; delete n[c.id]; return n; });
+    const existingId = discardedMap[c.id];
+    if (!existingId) return;
+    try {
+      await supabase.from("radar_discarded_results" as any)
+        .update({ restored_at: new Date().toISOString() })
+        .eq("id", existingId);
+    } catch { /* ignore */ }
+  }
+
+
+
+
+
 
   async function refreshExisting(candidates: OsmCandidate[], centerLat: number, centerLon: number, radiusKm: number) {
     if (candidates.length === 0) {
@@ -513,6 +585,7 @@ function OsmView() {
       } else {
         setResults(candidates);
         await refreshExisting(candidates, la, lo, rk);
+        await refreshDiscarded(candidates);
         if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
         else toast.success(`${candidates.length} candidati trovati`);
       }
@@ -578,10 +651,42 @@ function OsmView() {
         },
         properties: { osm_id: c.id, tags: c.tags, source: "OpenStreetMap/Overpass" },
       };
+      const quality = dataQuality(c);
+      const interest = commercialInterest(c, quality);
+      const pv = propVerifyMap[c.id];
+      const verStatusMap: Record<string, string> = {
+        da_identificare: "da_identificare",
+        occupante: "occupante_trovato",
+        proprieta: "proprieta_trovata",
+        contatto: "contatto_trovato",
+        non_verificabile: "non_verificabile",
+      };
+      const verificationStatus = pv?.status ? verStatusMap[pv.status] : "da_identificare";
+      const radarSource = searchMode === "extended" ? "osm_overpass_extended" : "osm_overpass_light";
+      const radarMetadata = {
+        osm_id: c.id,
+        osm_type: c.id.split("/")[0] ?? null,
+        building_type: buildingTypeLabel(c),
+        tags: c.tags,
+        distance_m: searchCenter ? Math.round(haversineM(searchCenter.lat, searchCenter.lon, c.lat, c.lon)) : null,
+        area_sqm: c.areaSqm,
+        search_mode: searchMode,
+        original_coords: { lat: c.lat, lon: c.lon },
+        checklist: checklists[c.id] ?? {},
+        commercial_interest_reason: interest.reason,
+        next_step: nextStep(c, quality, interest),
+        data_quality_reason: quality.reason,
+        result_hash: resultHash(c),
+      };
       const { data, error } = await supabase
         .from("opportunities")
         .insert({
           title,
+          data_quality: quality.level,
+          commercial_interest: interest.level,
+          verification_status: verificationStatus,
+          radar_source: radarSource,
+          radar_metadata: radarMetadata as any,
           city: "Da verificare",
           province: "Da verificare",
           opportunity_status: "da_verificare",
@@ -963,14 +1068,67 @@ function OsmView() {
             <span>{results.length} candidati nel range mq • fonte OpenStreetMap/Overpass</span>
             {Object.values(dismissed).filter(Boolean).length > 0 && (
               <button
-                onClick={() => setDismissed({})}
+                onClick={async () => {
+                  const toRestore = (results ?? []).filter((c) => dismissed[c.id]);
+                  for (const c of toRestore) await restoreCandidate(c);
+                }}
                 className="text-xs underline text-primary"
               >
                 Ripristina tutti gli scartati ({Object.values(dismissed).filter(Boolean).length})
               </button>
             )}
           </div>
-          {results.map((c) => {
+
+          {(() => {
+            const counts = {
+              all: results.length,
+              highQuality: results.filter((c) => dataQuality(c).level === "alta").length,
+              highInterest: results.filter((c) => commercialInterest(c, dataQuality(c)).level === "alto").length,
+              verifyOwner: results.filter((c) => !propVerifyMap[c.id]?.status || propVerifyMap[c.id]?.status === "da_identificare").length,
+              saved: results.filter((c) => savedMap[c.id] || matchMap[c.id]?.exact).length,
+              discarded: results.filter((c) => dismissed[c.id]).length,
+              unsaved: results.filter((c) => !savedMap[c.id] && !matchMap[c.id]?.exact && !dismissed[c.id]).length,
+            };
+            const chips: Array<[typeof filter, string]> = [
+              ["all", `Tutti (${counts.all})`],
+              ["highQuality", `Alta qualità (${counts.highQuality})`],
+              ["highInterest", `Interesse alto (${counts.highInterest})`],
+              ["verifyOwner", `Da verificare proprietà (${counts.verifyOwner})`],
+              ["saved", `Salvati (${counts.saved})`],
+              ["unsaved", `Non salvati (${counts.unsaved})`],
+              ["discarded", `Scartati (${counts.discarded})`],
+            ];
+            return (
+              <div className="flex flex-wrap gap-2">
+                {chips.map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setFilter(k)}
+                    className={`text-xs px-3 py-1.5 rounded-md border ${filter === k ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {results.filter((c) => {
+            const q = dataQuality(c);
+            const i = commercialInterest(c, q);
+            const isSaved = !!savedMap[c.id] || !!matchMap[c.id]?.exact;
+            const isDis = !!dismissed[c.id];
+            switch (filter) {
+              case "highQuality": return q.level === "alta";
+              case "highInterest": return i.level === "alto";
+              case "verifyOwner": return !propVerifyMap[c.id]?.status || propVerifyMap[c.id]?.status === "da_identificare";
+              case "saved": return isSaved;
+              case "discarded": return isDis;
+              case "unsaved": return !isSaved && !isDis;
+              default: return true;
+            }
+          }).map((c) => {
             const status = compatStatusFromScore(c.compatibility);
             const match = matchMap[c.id];
             const isDismissed = !!dismissed[c.id];
@@ -1124,7 +1282,7 @@ function OsmView() {
                   {isDismissed ? (
                     <button
                       type="button"
-                      onClick={() => setDismissed((m) => { const n = { ...m }; delete n[c.id]; return n; })}
+                      onClick={() => restoreCandidate(c)}
                       className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent"
                     >
                       Ripristina
@@ -1132,7 +1290,7 @@ function OsmView() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setDismissed((m) => ({ ...m, [c.id]: true }))}
+                      onClick={() => discardCandidate(c)}
                       className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent text-muted-foreground"
                     >
                       Scarta

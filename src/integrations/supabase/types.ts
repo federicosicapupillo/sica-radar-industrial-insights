@@ -315,12 +315,14 @@ export type Database = {
           call_outcome: string | null
           city: string | null
           client_name: string | null
+          commercial_interest: string | null
           commercial_notes: string | null
           compatibility_score: number | null
           compatibility_status: string | null
           contact_name: string | null
           covered_sqm: number | null
           created_at: string
+          data_quality: string | null
           email: string | null
           estimated_height: number | null
           geo_area_sqm: number | null
@@ -385,6 +387,8 @@ export type Database = {
           property_condition: string | null
           property_type: string | null
           province: string | null
+          radar_metadata: Json | null
+          radar_source: string | null
           region: string | null
           rent_price: number | null
           search_name: string | null
@@ -407,6 +411,7 @@ export type Database = {
           truck_access_status: string | null
           updated_at: string
           uploaded_file_url: string | null
+          verification_status: string | null
           visual_notes: string | null
           yard_sqm: number | null
         }
@@ -418,12 +423,14 @@ export type Database = {
           call_outcome?: string | null
           city?: string | null
           client_name?: string | null
+          commercial_interest?: string | null
           commercial_notes?: string | null
           compatibility_score?: number | null
           compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
           created_at?: string
+          data_quality?: string | null
           email?: string | null
           estimated_height?: number | null
           geo_area_sqm?: number | null
@@ -488,6 +495,8 @@ export type Database = {
           property_condition?: string | null
           property_type?: string | null
           province?: string | null
+          radar_metadata?: Json | null
+          radar_source?: string | null
           region?: string | null
           rent_price?: number | null
           search_name?: string | null
@@ -510,6 +519,7 @@ export type Database = {
           truck_access_status?: string | null
           updated_at?: string
           uploaded_file_url?: string | null
+          verification_status?: string | null
           visual_notes?: string | null
           yard_sqm?: number | null
         }
@@ -521,12 +531,14 @@ export type Database = {
           call_outcome?: string | null
           city?: string | null
           client_name?: string | null
+          commercial_interest?: string | null
           commercial_notes?: string | null
           compatibility_score?: number | null
           compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
           created_at?: string
+          data_quality?: string | null
           email?: string | null
           estimated_height?: number | null
           geo_area_sqm?: number | null
@@ -591,6 +603,8 @@ export type Database = {
           property_condition?: string | null
           property_type?: string | null
           province?: string | null
+          radar_metadata?: Json | null
+          radar_source?: string | null
           region?: string | null
           rent_price?: number | null
           search_name?: string | null
@@ -613,8 +627,66 @@ export type Database = {
           truck_access_status?: string | null
           updated_at?: string
           uploaded_file_url?: string | null
+          verification_status?: string | null
           visual_notes?: string | null
           yard_sqm?: number | null
+        }
+        Relationships: []
+      }
+      radar_discarded_results: {
+        Row: {
+          address: string | null
+          building_type: string | null
+          commercial_interest: string | null
+          created_at: string
+          data_quality: string | null
+          discard_reason: string | null
+          discarded_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          osm_id: string | null
+          osm_type: string | null
+          restored_at: string | null
+          result_hash: string
+          title: string | null
+          user_id: string | null
+        }
+        Insert: {
+          address?: string | null
+          building_type?: string | null
+          commercial_interest?: string | null
+          created_at?: string
+          data_quality?: string | null
+          discard_reason?: string | null
+          discarded_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          osm_id?: string | null
+          osm_type?: string | null
+          restored_at?: string | null
+          result_hash: string
+          title?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          address?: string | null
+          building_type?: string | null
+          commercial_interest?: string | null
+          created_at?: string
+          data_quality?: string | null
+          discard_reason?: string | null
+          discarded_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          osm_id?: string | null
+          osm_type?: string | null
+          restored_at?: string | null
+          result_hash?: string
+          title?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
