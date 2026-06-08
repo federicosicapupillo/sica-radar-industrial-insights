@@ -396,9 +396,75 @@ function OsmView() {
     for (const [k, label] of CHK_ITEMS) {
       const s = cl[k];
       if (s && s !== "todo") lines.push(`• ${label}: ${CHK_STATUS_LABEL[s]}`);
-    }
-    return lines.join("\n");
   }
+
+  function resultHash(c: OsmCandidate): string {
+    return `${c.id}|${c.lat.toFixed(5)}|${c.lon.toFixed(5)}|${Math.round(c.areaSqm)}`;
+  }
+
+  async function refreshDiscarded(candidates: OsmCandidate[]) {
+    if (candidates.length === 0) { setDiscardedMap({}); return; }
+    const hashes = candidates.map(resultHash);
+    const { data } = await supabase
+      .from("radar_discarded_results" as any)
+      .select("id, result_hash, restored_at")
+      .in("result_hash", hashes);
+    const dMap: Record<string, string> = {};
+    const dismissedNext: Record<string, boolean> = {};
+    (data ?? []).forEach((r: any) => {
+      const cand = candidates.find((c) => resultHash(c) === r.result_hash);
+      if (!cand) return;
+      dMap[cand.id] = r.id;
+      if (!r.restored_at) dismissedNext[cand.id] = true;
+    });
+    setDiscardedMap(dMap);
+    setDismissed(dismissedNext);
+  }
+
+  async function discardCandidate(c: OsmCandidate) {
+    setDismissed((m) => ({ ...m, [c.id]: true }));
+    try {
+      const quality = dataQuality(c);
+      const interest = commercialInterest(c, quality);
+      const existingId = discardedMap[c.id];
+      if (existingId) {
+        await supabase.from("radar_discarded_results" as any)
+          .update({ restored_at: null, discarded_at: new Date().toISOString() })
+          .eq("id", existingId);
+      } else {
+        const { data } = await supabase.from("radar_discarded_results" as any).insert({
+          osm_id: c.id.split("/")[1] ?? c.id,
+          osm_type: c.id.split("/")[0] ?? null,
+          result_hash: resultHash(c),
+          title: c.name ?? null,
+          address: addressLabel(c),
+          lat: c.lat,
+          lng: c.lon,
+          building_type: buildingTypeLabel(c),
+          data_quality: quality.level,
+          commercial_interest: interest.level,
+          discard_reason: noteDrafts[c.id]?.text?.trim() || null,
+        }).select("id").single();
+        if (data) setDiscardedMap((m) => ({ ...m, [c.id]: (data as any).id }));
+      }
+    } catch (e: any) {
+      // non bloccare UI
+      console.warn("discard persist failed", e?.message);
+    }
+  }
+
+  async function restoreCandidate(c: OsmCandidate) {
+    setDismissed((m) => { const n = { ...m }; delete n[c.id]; return n; });
+    const existingId = discardedMap[c.id];
+    if (!existingId) return;
+    try {
+      await supabase.from("radar_discarded_results" as any)
+        .update({ restored_at: new Date().toISOString() })
+        .eq("id", existingId);
+    } catch { /* ignore */ }
+  }
+
+
 
 
 
