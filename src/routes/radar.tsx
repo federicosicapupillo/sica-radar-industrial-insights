@@ -966,7 +966,7 @@ function OsmView() {
                 onClick={() => setDismissed({})}
                 className="text-xs underline text-primary"
               >
-                Mostra {Object.values(dismissed).filter(Boolean).length} scartati
+                Ripristina tutti gli scartati ({Object.values(dismissed).filter(Boolean).length})
               </button>
             )}
           </div>
