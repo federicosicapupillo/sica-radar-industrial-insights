@@ -231,7 +231,26 @@ function OsmView() {
   const [searchCenter, setSearchCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [dismissed, setDismissed] = useState<Record<string, boolean>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, { open: boolean; text: string }>>({});
-  const [verifyOwnership, setVerifyOwnership] = useState<Record<string, boolean>>({});
+  type ChkStatus = "todo" | "ok" | "na" | "nr";
+  type PropVerifyDraft = {
+    visibleCompany: string;
+    possibleOccupant: string;
+    possibleOwner: string;
+    phone: string;
+    email: string;
+    source: string;
+    notes: string;
+    status: "" | "da_identificare" | "occupante" | "proprieta" | "contatto" | "non_verificabile";
+  };
+  const emptyPropVerify: PropVerifyDraft = {
+    visibleCompany: "", possibleOccupant: "", possibleOwner: "",
+    phone: "", email: "", source: "", notes: "", status: "",
+  };
+  const [checklists, setChecklists] = useState<Record<string, Record<string, ChkStatus>>>({});
+  const [checklistOpen, setChecklistOpen] = useState<Record<string, boolean>>({});
+  const [propVerifyMap, setPropVerifyMap] = useState<Record<string, PropVerifyDraft>>({});
+  const [propVerifyOpen, setPropVerifyOpen] = useState<string | null>(null);
+  const [savedMap, setSavedMap] = useState<Record<string, string>>({});
   const [lastSearches, setLastSearches] = useState<any[]>([]);
   const [confirmDup, setConfirmDup] = useState<{ c: OsmCandidate; match: MatchInfo } | null>(null);
   type OccupantDraft = {
