@@ -585,6 +585,7 @@ function OsmView() {
       } else {
         setResults(candidates);
         await refreshExisting(candidates, la, lo, rk);
+        await refreshDiscarded(candidates);
         if (candidates.length === 0) toast.info("Nessun candidato OSM nel range mq.");
         else toast.success(`${candidates.length} candidati trovati`);
       }
