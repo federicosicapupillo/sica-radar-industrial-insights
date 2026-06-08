@@ -396,7 +396,11 @@ function OsmView() {
     for (const [k, label] of CHK_ITEMS) {
       const s = cl[k];
       if (s && s !== "todo") lines.push(`• ${label}: ${CHK_STATUS_LABEL[s]}`);
+    }
+    return lines.join("\n");
   }
+
+
 
   function resultHash(c: OsmCandidate): string {
     return `${c.id}|${c.lat.toFixed(5)}|${c.lon.toFixed(5)}|${Math.round(c.areaSqm)}`;
