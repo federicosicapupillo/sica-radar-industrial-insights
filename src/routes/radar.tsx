@@ -542,9 +542,9 @@ function OsmView() {
           occupant_website: d.website.trim() || null,
           occupant_contact_source: d.source.trim() || null,
           occupant_contact_confidence: d.confidence.trim() || null,
-          occupant_contact_notes: d.notes.trim() || null,
+          occupant_contact_notes: [d.notes.trim(), noteDrafts[c.id]?.text?.trim()].filter(Boolean).join("\n") || null,
           occupant_contact_status: (d.company.trim() || d.phone.trim()) ? "da_chiamare" : null,
-          commercial_notes: d.notes.trim() || null,
+          commercial_notes: [d.notes.trim(), noteDrafts[c.id]?.text?.trim()].filter(Boolean).join("\n") || null,
         })
         .select("id")
         .single();
