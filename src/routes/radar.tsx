@@ -532,7 +532,9 @@ function OsmView() {
           source_url: `https://www.openstreetmap.org/${c.id}`,
           google_maps_url: `https://www.google.com/maps?q=${c.lat},${c.lon}`,
           google_earth_url: `https://earth.google.com/web/@${c.lat},${c.lon},150a,500d,35y,0h,0t,0r`,
-          suggested_next_action: "Verificare occupante, altezza, accesso bilici e proprietà",
+          suggested_next_action: verifyOwnership[c.id]
+            ? "PRIORITÀ: verificare proprietà (visura/catasto). Poi occupante, altezza, accesso bilici."
+            : "Verificare occupante, altezza, accesso bilici e proprietà",
           last_measured_at: new Date().toISOString(),
           // Occupant draft (optional)
           occupant_company_name: d.company.trim() || null,
