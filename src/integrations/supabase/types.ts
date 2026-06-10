@@ -321,6 +321,7 @@ export type Database = {
           compatibility_status: string | null
           contact_name: string | null
           covered_sqm: number | null
+          crane_capacity_tons: number | null
           created_at: string
           data_quality: string | null
           email: string | null
@@ -333,6 +334,7 @@ export type Database = {
           google_maps_url: string | null
           has_crane: boolean | null
           has_offices: boolean | null
+          highway_distance_km: number | null
           id: string
           indicated_owner_email: string | null
           indicated_owner_name: string | null
@@ -347,6 +349,7 @@ export type Database = {
           last_measured_at: string | null
           latitude: number | null
           loading_doors: number | null
+          logistics_hub_distance_km: number | null
           longitude: number | null
           measured_covered_sqm: number | null
           measured_length: number | null
@@ -381,6 +384,7 @@ export type Database = {
           person_role: string | null
           person_spoken_to: string | null
           phone: string | null
+          port_distance_km: number | null
           possible_owner: string | null
           power_available: string | null
           priority: string
@@ -429,6 +433,7 @@ export type Database = {
           compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
+          crane_capacity_tons?: number | null
           created_at?: string
           data_quality?: string | null
           email?: string | null
@@ -441,6 +446,7 @@ export type Database = {
           google_maps_url?: string | null
           has_crane?: boolean | null
           has_offices?: boolean | null
+          highway_distance_km?: number | null
           id?: string
           indicated_owner_email?: string | null
           indicated_owner_name?: string | null
@@ -455,6 +461,7 @@ export type Database = {
           last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
+          logistics_hub_distance_km?: number | null
           longitude?: number | null
           measured_covered_sqm?: number | null
           measured_length?: number | null
@@ -489,6 +496,7 @@ export type Database = {
           person_role?: string | null
           person_spoken_to?: string | null
           phone?: string | null
+          port_distance_km?: number | null
           possible_owner?: string | null
           power_available?: string | null
           priority?: string
@@ -537,6 +545,7 @@ export type Database = {
           compatibility_status?: string | null
           contact_name?: string | null
           covered_sqm?: number | null
+          crane_capacity_tons?: number | null
           created_at?: string
           data_quality?: string | null
           email?: string | null
@@ -549,6 +558,7 @@ export type Database = {
           google_maps_url?: string | null
           has_crane?: boolean | null
           has_offices?: boolean | null
+          highway_distance_km?: number | null
           id?: string
           indicated_owner_email?: string | null
           indicated_owner_name?: string | null
@@ -563,6 +573,7 @@ export type Database = {
           last_measured_at?: string | null
           latitude?: number | null
           loading_doors?: number | null
+          logistics_hub_distance_km?: number | null
           longitude?: number | null
           measured_covered_sqm?: number | null
           measured_length?: number | null
@@ -597,6 +608,7 @@ export type Database = {
           person_role?: string | null
           person_spoken_to?: string | null
           phone?: string | null
+          port_distance_km?: number | null
           possible_owner?: string | null
           power_available?: string | null
           priority?: string
