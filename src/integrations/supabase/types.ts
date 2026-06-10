@@ -765,6 +765,84 @@ export type Database = {
         }
         Relationships: []
       }
+      warehouses: {
+        Row: {
+          address: string | null
+          asking_price: number | null
+          brain_id: string | null
+          commercial_notes: string | null
+          covered_sqm: number | null
+          created_at: string
+          has_crane: boolean | null
+          id: string
+          industrial_area: string | null
+          intended_use: string | null
+          internal_height: number | null
+          latitude: number | null
+          loading_doors: number | null
+          longitude: number | null
+          municipality: string | null
+          name: string | null
+          opportunity_status: string | null
+          province: string | null
+          region: string | null
+          rent_price: number | null
+          updated_at: string
+          user_id: string
+          yard_sqm: number | null
+        }
+        Insert: {
+          address?: string | null
+          asking_price?: number | null
+          brain_id?: string | null
+          commercial_notes?: string | null
+          covered_sqm?: number | null
+          created_at?: string
+          has_crane?: boolean | null
+          id?: string
+          industrial_area?: string | null
+          intended_use?: string | null
+          internal_height?: number | null
+          latitude?: number | null
+          loading_doors?: number | null
+          longitude?: number | null
+          municipality?: string | null
+          name?: string | null
+          opportunity_status?: string | null
+          province?: string | null
+          region?: string | null
+          rent_price?: number | null
+          updated_at?: string
+          user_id: string
+          yard_sqm?: number | null
+        }
+        Update: {
+          address?: string | null
+          asking_price?: number | null
+          brain_id?: string | null
+          commercial_notes?: string | null
+          covered_sqm?: number | null
+          created_at?: string
+          has_crane?: boolean | null
+          id?: string
+          industrial_area?: string | null
+          intended_use?: string | null
+          internal_height?: number | null
+          latitude?: number | null
+          loading_doors?: number | null
+          longitude?: number | null
+          municipality?: string | null
+          name?: string | null
+          opportunity_status?: string | null
+          province?: string | null
+          region?: string | null
+          rent_price?: number | null
+          updated_at?: string
+          user_id?: string
+          yard_sqm?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
