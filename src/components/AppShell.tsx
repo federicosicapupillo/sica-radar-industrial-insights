@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Ruler,
+  Warehouse,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const nav: NavItem[] = [
   { to: "/radar", label: "Radar", icon: Radar },
   { to: "/opportunita", label: "Opportunità", icon: Building2 },
   { to: "/opportunita/nuova", label: "Nuova", icon: PlusCircle },
+  { to: "/capannoni", label: "Capannoni", icon: Warehouse },
   { to: "/misuratore", label: "Misuratore", icon: Ruler },
   { to: "/contatti", label: "Contatti", icon: Users },
   { to: "/mappa", label: "Mappa", icon: Map },
