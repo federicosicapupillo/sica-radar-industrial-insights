@@ -14,6 +14,7 @@ import { Route as RadarRouteImport } from './routes/radar'
 import { Route as MisuratoreRouteImport } from './routes/misuratore'
 import { Route as MappaRouteImport } from './routes/mappa'
 import { Route as ContattiRouteImport } from './routes/contatti'
+import { Route as CapannoniRouteImport } from './routes/capannoni'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OpportunitaIndexRouteImport } from './routes/opportunita.index'
 import { Route as OpportunitaNuovaRouteImport } from './routes/opportunita.nuova'
@@ -44,6 +45,11 @@ const ContattiRoute = ContattiRouteImport.update({
   path: '/contatti',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CapannoniRoute = CapannoniRouteImport.update({
+  id: '/capannoni',
+  path: '/capannoni',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,6 +73,7 @@ const OpportunitaIdRoute = OpportunitaIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/capannoni': typeof CapannoniRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/capannoni': typeof CapannoniRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/capannoni': typeof CapannoniRoute
   '/contatti': typeof ContattiRoute
   '/mappa': typeof MappaRoute
   '/misuratore': typeof MisuratoreRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/capannoni'
     | '/contatti'
     | '/mappa'
     | '/misuratore'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/capannoni'
     | '/contatti'
     | '/mappa'
     | '/misuratore'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/capannoni'
     | '/contatti'
     | '/mappa'
     | '/misuratore'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CapannoniRoute: typeof CapannoniRoute
   ContattiRoute: typeof ContattiRoute
   MappaRoute: typeof MappaRoute
   MisuratoreRoute: typeof MisuratoreRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContattiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/capannoni': {
+      id: '/capannoni'
+      path: '/capannoni'
+      fullPath: '/capannoni'
+      preLoaderRoute: typeof CapannoniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CapannoniRoute: CapannoniRoute,
   ContattiRoute: ContattiRoute,
   MappaRoute: MappaRoute,
   MisuratoreRoute: MisuratoreRoute,
