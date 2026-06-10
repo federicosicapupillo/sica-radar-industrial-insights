@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <title>Brain Hub · Lovable Bridge</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: -apple-system, system-ui, sans-serif; width: 360px; margin: 0; padding: 12px; }
+      h1 { font-size: 14px; margin: 0 0 8px; }
+      textarea { width: 100%; box-sizing: border-box; min-height: 120px; font: 12px/1.4 ui-monospace, monospace; padding: 6px; }
+      .row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+      button { flex: 1 1 auto; padding: 8px 10px; font-size: 12px; cursor: pointer; border-radius: 6px; border: 1px solid #888; background: #f5f5f5; }
+      button.primary { background: #2563eb; color: white; border-color: #2563eb; }
+      button.warn { background: #b45309; color: white; border-color: #b45309; }
+      .diag { margin-top: 10px; font-size: 11px; border: 1px solid #ccc; border-radius: 6px; padding: 6px; background: rgba(0,0,0,0.03); }
+      .diag div { display: flex; justify-content: space-between; gap: 6px; }
+      .ok { color: #15803d; font-weight: 600; }
+      .ko { color: #b91c1c; font-weight: 600; }
+      .msg { margin-top: 8px; font-size: 12px; min-height: 16px; }
+      label { font-size: 11px; opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <h1>Brain Hub · Lovable Bridge</h1>
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" placeholder="Incolla qui il prompt da inserire nella chat Lovable…"></textarea>
+
+    <div class="row">
+      <button id="btnInsert" class="primary">Inserisci prompt</button>
+      <button id="btnActive">Usa campo attivo</button>
+    </div>
+    <div class="row">
+      <button id="btnInsertSend" class="warn">Inserisci e invia con conferma</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="diag" id="diag">
+      <div><span>Tab attivo</span><span id="dTab">…</span></div>
+      <div><span>URL Lovable</span><span id="dUrl">…</span></div>
+      <div><span>Content script</span><span id="dCs">…</span></div>
+      <div><span>Campo chat</span><span id="dField">—</span></div>
+      <div><span>Metodo</span><span id="dMethod">—</span></div>
+      <div><span>Ultimo errore</span><span id="dErr">—</span></div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
